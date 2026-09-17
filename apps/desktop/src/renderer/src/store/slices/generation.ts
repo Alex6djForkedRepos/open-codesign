@@ -7,7 +7,11 @@ import type {
   ResourceStateV1,
   WireApi,
 } from '@open-codesign/shared';
-import { DEFAULT_SOURCE_ENTRY, LEGACY_SOURCE_ENTRY } from '@open-codesign/shared';
+import {
+  commentContentFingerprint,
+  DEFAULT_SOURCE_ENTRY,
+  LEGACY_SOURCE_ENTRY,
+} from '@open-codesign/shared';
 import type { CodesignApi, ExportFormat } from '../../../../preload/index.js';
 import { recordAction } from '../../lib/action-timeline.js';
 import { redactUrls } from '../../lib/redact.js';
@@ -128,7 +132,12 @@ function isCurrentGenerationForDesign(
   return state.generationByDesign[designId]?.generationId === generationId;
 }
 
-function startGenerationForDesign(set: SetState, designId: string, generationId: string): void {
+function startGenerationForDesign(
+  set: SetState,
+  designId: string,
+  generationId: string,
+  submittedContext: NonNullable<CodesignState['generationByDesign'][string]['submittedContext']>,
+): void {
   set((state) => {
     const generationByDesign = {
       ...state.generationByDesign,
@@ -137,6 +146,7 @@ function startGenerationForDesign(set: SetState, designId: string, generationId:
         stage: 'sending' as GenerationStage,
         startedAt: Date.now(),
         awaitingResponse: true,
+        submittedContext,
       },
     };
     return {
@@ -810,6 +820,9 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       const allPendingEdits = [...pendingEdits, ...injectedPendingEdits];
       const enrichedPrompt = buildEnrichedPrompt(request.prompt, allPendingEdits);
       const pendingEditIds = pendingEdits.map((c) => c.id);
+      const submittedComments = Object.fromEntries(
+        pendingEdits.map((comment) => [comment.id, commentContentFingerprint(comment)]),
+      );
 
       const designIdAtStart = get().currentDesignId;
       const activeDesign = get().designs.find((design) => design.id === designIdAtStart);
@@ -846,7 +859,10 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       }
 
       const generationId = newId();
-      startGenerationForDesign(set, designIdAtStart, generationId);
+      startGenerationForDesign(set, designIdAtStart, generationId, {
+        ...(request.referenceUrl ? { referenceUrl: request.referenceUrl } : {}),
+        comments: submittedComments,
+      });
       clearStreamingForDesign(set, designIdAtStart);
       set(() => ({
         errorMessage: null,
@@ -922,25 +938,47 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
               }
             }
             if (appliedIn) {
-              const updated = await window.codesign.comments.markApplied(
+              const result = await window.codesign.comments.markAppliedIfUnchanged(
                 designIdAtStart,
                 pendingEditIds,
                 appliedIn,
+                submittedComments,
               );
-              if (updated.length > 0) {
-                set((s) => ({
+              const conflicts = new Set(result.conflictedIds);
+              set((s) => {
+                const updated = result.applied.filter((row) => {
+                  if (s.currentDesignId !== designIdAtStart) return true;
+                  const current = s.comments.find((comment) => comment.id === row.id);
+                  const unchanged =
+                    current && commentContentFingerprint(current) === submittedComments[row.id];
+                  if (!unchanged) conflicts.add(row.id);
+                  return unchanged;
+                });
+                const appliedIds = new Set(updated.map((row) => row.id));
+                return {
                   ...(s.currentDesignId === designIdAtStart
                     ? {
                         comments: s.comments.map((c) => updated.find((u) => u.id === c.id) ?? c),
                         currentSnapshotId: appliedIn,
+                        queuedCommentIds: s.queuedCommentIds.filter((id) => !appliedIds.has(id)),
                       }
                     : {}),
-                  queuedCommentIds: s.queuedCommentIds.filter((id) => !pendingEditIds.includes(id)),
-                }));
+                };
+              });
+              if (conflicts.size > 0) {
+                get().pushToast({
+                  variant: 'info',
+                  title: tr('notifications.commentsChangedDuringGeneration'),
+                });
               }
             }
           } catch (err) {
             console.warn('[open-codesign] markApplied failed:', err);
+            get().pushToast({
+              variant: 'error',
+              title: tr('notifications.commentUpdateFailed'),
+              description: err instanceof Error ? err.message : tr('errors.unknown'),
+            });
           }
         }
       } catch (err) {

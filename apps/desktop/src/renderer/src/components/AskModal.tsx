@@ -1,4 +1,5 @@
 import { useT } from '@open-codesign/i18n';
+import type { AskCancelledV1 } from '@open-codesign/shared';
 import { Check, MessageCircleQuestion, X } from 'lucide-react';
 import { type ReactElement, useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -161,6 +162,17 @@ export function advanceAskQueue(state: AskQueueState): AskQueueState {
   return { active: next ?? null, queue: rest };
 }
 
+export function dismissAskRequest(
+  state: AskQueueState,
+  request: Pick<AskRequest, 'requestId' | 'sessionId'>,
+): AskQueueState {
+  const matches = (item: AskRequest) =>
+    item.requestId === request.requestId && item.sessionId === request.sessionId;
+  const queue = state.queue.filter((item) => !matches(item));
+  if (state.active && matches(state.active)) return advanceAskQueue({ active: null, queue });
+  return queue.length === state.queue.length ? state : { active: state.active, queue };
+}
+
 export function answerValueForImportedFiles(input: {
   importedPaths: readonly string[];
   selectedNames: readonly string[];
@@ -177,29 +189,52 @@ export function AskModal() {
   const setSidebarCollapsed = useCodesignStore((s) => s.setSidebarCollapsed);
   const setPreviewFullscreen = useCodesignStore((s) => s.setPreviewFullscreen);
   const [askQueue, setAskQueue] = useState<AskQueueState>({ active: null, queue: [] });
+  const queueRef = useRef(askQueue);
+  const updateQueue = useCallback((change: (state: AskQueueState) => AskQueueState) => {
+    queueRef.current = change(queueRef.current);
+    setAskQueue(queueRef.current);
+  }, []);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const panelRef = useRef<HTMLElement>(null);
   const pending = askQueue.active;
 
   useEffect(() => {
     let disposed = false;
+    let replayCancellations: AskCancelledV1[] | null = [];
     const off = window.codesign?.ask?.onRequest?.((req) => {
-      setAskQueue((prev) => enqueueAskRequest(prev, req));
+      updateQueue((prev) => enqueueAskRequest(prev, req));
+    });
+    const offCancelled = window.codesign?.ask?.onCancelled?.((event) => {
+      replayCancellations?.push(event);
+      updateQueue((prev) => dismissAskRequest(prev, event));
     });
     void window.codesign?.ask
       ?.pending?.()
       .then((requests) => {
         if (disposed) return;
-        setAskQueue((prev) => enqueueAskRequests(prev, requests));
+        const live = requests.filter(
+          (request) =>
+            !replayCancellations?.some(
+              (event) =>
+                event.requestId === request.requestId && event.sessionId === request.sessionId,
+            ),
+        );
+        updateQueue((prev) => enqueueAskRequests(prev, live));
       })
       .catch(() => {
         // The live IPC event remains the primary path; pending replay is recovery-only.
+      })
+      .finally(() => {
+        replayCancellations = null;
       });
     return () => {
       disposed = true;
+      queueRef.current = { active: null, queue: [] };
+      replayCancellations = null;
       off?.();
+      offCancelled?.();
     };
-  }, []);
+  }, [updateQueue]);
 
   useEffect(() => {
     setAnswers(pending ? initialAnswers(pending.input.questions) : {});
@@ -215,14 +250,18 @@ export function AskModal() {
     return () => cancelAnimationFrame(frame);
   }, [pending, setSidebarCollapsed, setPreviewFullscreen]);
 
-  const resolve = useCallback((requestId: string, result: AskResult) => {
-    void window.codesign?.ask?.resolve?.(requestId, result);
-    setAskQueue((prev) => advanceAskQueue(prev));
-  }, []);
+  const resolve = useCallback(
+    (request: AskRequest, result: AskResult) => {
+      if (queueRef.current.active !== request) return;
+      updateQueue((prev) => dismissAskRequest(prev, request));
+      void window.codesign?.ask?.resolve?.(request.requestId, result);
+    },
+    [updateQueue],
+  );
 
   const cancel = useCallback(() => {
     if (!pending) return;
-    resolve(pending.requestId, { status: 'cancelled', answers: [] });
+    resolve(pending, { status: 'cancelled', answers: [] });
   }, [pending, resolve]);
 
   useEffect(() => {
@@ -245,10 +284,13 @@ export function AskModal() {
   const importQuestionFiles = useCallback<FileImportHandler>(
     async (files) => {
       const input = await fileListToWorkspaceImport(files);
+      if (!pending || queueRef.current.active !== pending) {
+        throw new Error('The file question is no longer active.');
+      }
       const imported = await importFilesToWorkspace({ source: 'composer', ...input });
       return imported.map((file) => file.path);
     },
-    [importFilesToWorkspace],
+    [importFilesToWorkspace, pending],
   );
 
   if (!pending) return null;
@@ -259,11 +301,12 @@ export function AskModal() {
       questionId: q.id,
       value: answers[q.id] ?? null,
     }));
-    resolve(pending.requestId, { status: 'answered', answers: collected });
+    resolve(pending, { status: 'answered', answers: collected });
   }
 
   function setValue(id: string, value: AnswerValue) {
-    setAnswers((prev) => ({ ...prev, [id]: value }));
+    if (queueRef.current.active !== pending) return;
+    setAnswers((prev) => (queueRef.current.active === pending ? { ...prev, [id]: value } : prev));
   }
 
   return (
@@ -294,7 +337,7 @@ export function AskModal() {
           <div className="flex flex-col gap-[var(--space-3)]">
             {pending.input.questions.map((q) => (
               <QuestionField
-                key={q.id}
+                key={JSON.stringify([pending.sessionId, pending.requestId, q.id])}
                 question={q}
                 value={answers[q.id] ?? null}
                 onChange={(v) => setValue(q.id, v)}

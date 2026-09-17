@@ -22,7 +22,15 @@ import type {
   PreviewMode,
   SnapshotCreateInput,
 } from '@open-codesign/shared';
-import { ChatMessageKind, CodesignError, CommentKind, CommentRect } from '@open-codesign/shared';
+import {
+  ChatMessageKind,
+  CodesignError,
+  type CommentApplyResultV1,
+  CommentContentExpectations,
+  CommentKind,
+  CommentRect,
+} from '@open-codesign/shared';
+import { withWorkspaceFileWriter } from '@open-codesign/shared/workspace-file-lock';
 import { isDemoInputId } from '@open-codesign/templates/demo-inputs';
 import type { BrowserWindow } from 'electron';
 import {
@@ -48,6 +56,7 @@ import {
   listSessionChatMessages,
   listSessionComments,
   markSessionCommentsApplied,
+  markSessionCommentsAppliedIfUnchanged,
   removeSessionComment,
   type SessionChatStoreOptions,
   seedSessionChatFromSnapshots,
@@ -1154,6 +1163,7 @@ function parseCommentMarkAppliedInput(raw: unknown): {
   designId: string;
   ids: string[];
   snapshotId: string;
+  expectedContent?: CommentContentExpectations;
 } {
   if (typeof raw !== 'object' || raw === null) {
     throw new CodesignError(
@@ -1172,7 +1182,22 @@ function parseCommentMarkAppliedInput(raw: unknown): {
   if (typeof r['snapshotId'] !== 'string' || r['snapshotId'].trim().length === 0) {
     throw new CodesignError('snapshotId must be a non-empty string', 'IPC_BAD_INPUT');
   }
-  return { designId: r['designId'], ids: r['ids'], snapshotId: r['snapshotId'] };
+  const expected =
+    r['expectedContent'] === undefined
+      ? undefined
+      : CommentContentExpectations.safeParse(r['expectedContent']);
+  if (expected && !expected.success) {
+    throw new CodesignError(
+      'expectedContent must map comment IDs to content fingerprints',
+      'IPC_BAD_INPUT',
+    );
+  }
+  return {
+    designId: r['designId'],
+    ids: r['ids'],
+    snapshotId: r['snapshotId'],
+    ...(expected?.success ? { expectedContent: expected.data } : {}),
+  };
 }
 
 function chatStoreOptions(db: Database): SessionChatStoreOptions {
@@ -1646,12 +1671,28 @@ export function registerSnapshotsIpc(db: Database): void {
     };
   });
 
-  ipcMain.handle('comments:v1:mark-applied', (_e: unknown, raw: unknown): CommentRow[] => {
-    const input = parseCommentMarkAppliedInput(raw);
-    return runDb('comments:mark-applied', () =>
-      markSessionCommentsApplied(chatStoreOptions(db), input.designId, input.ids, input.snapshotId),
-    );
-  });
+  ipcMain.handle(
+    'comments:v1:mark-applied',
+    (_e: unknown, raw: unknown): CommentRow[] | CommentApplyResultV1 => {
+      const input = parseCommentMarkAppliedInput(raw);
+      return runDb('comments:mark-applied', () =>
+        input.expectedContent
+          ? markSessionCommentsAppliedIfUnchanged(
+              chatStoreOptions(db),
+              input.designId,
+              input.ids,
+              input.snapshotId,
+              input.expectedContent,
+            )
+          : markSessionCommentsApplied(
+              chatStoreOptions(db),
+              input.designId,
+              input.ids,
+              input.snapshotId,
+            ),
+      );
+    },
+  );
 }
 
 export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow | null): void {
@@ -2096,55 +2137,60 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
         } catch (cause) {
           throw new CodesignError('Invalid workspace file path', 'IPC_BAD_INPUT', { cause });
         }
-        try {
-          if (typeof r['expectedContent'] === 'string') {
-            const currentContent = await readFile(currentDestinationPath, 'utf8');
-            if (currentContent !== r['expectedContent']) {
-              throw new CodesignError(
-                'Workspace file changed before the tweak could be saved. Reload its controls.',
-                'IPC_CONFLICT',
-              );
+        return withWorkspaceFileWriter(currentDestinationPath, async () => {
+          try {
+            if (typeof r['expectedContent'] === 'string') {
+              const currentContent = await readFile(currentDestinationPath, 'utf8');
+              if (currentContent !== r['expectedContent']) {
+                throw new CodesignError(
+                  'Workspace file changed before the tweak could be saved. Reload its controls.',
+                  'IPC_CONFLICT',
+                );
+              }
+            }
+            await mkdir(path.dirname(currentDestinationPath), { recursive: true });
+            if (typeof writeContent.diskContent === 'string') {
+              await writeFile(currentDestinationPath, writeContent.diskContent, 'utf8');
+            } else {
+              await writeFile(currentDestinationPath, writeContent.diskContent);
+            }
+          } catch (cause) {
+            if (cause instanceof CodesignError) throw cause;
+            throw new CodesignError('Failed to write workspace file', 'IPC_DB_ERROR', { cause });
+          }
+
+          runDb('files:write.upsert-design-file', () =>
+            upsertDesignFile(db, designId, normalizedPath, writeContent.storedContent),
+          );
+
+          if (writeContent.isBinaryAsset) {
+            try {
+              const s = await stat(currentDestinationPath);
+              return {
+                path: normalizedPath,
+                kind: classifyWorkspaceFileKind(normalizedPath),
+                size: s.size,
+                updatedAt: s.mtime.toISOString(),
+                content: writeContent.storedContent,
+              };
+            } catch (cause) {
+              throw new CodesignError('Failed to stat written workspace file', 'IPC_DB_ERROR', {
+                cause,
+              });
             }
           }
-          await mkdir(path.dirname(currentDestinationPath), { recursive: true });
-          if (typeof writeContent.diskContent === 'string') {
-            await writeFile(currentDestinationPath, writeContent.diskContent, 'utf8');
-          } else {
-            await writeFile(currentDestinationPath, writeContent.diskContent);
-          }
-        } catch (cause) {
-          if (cause instanceof CodesignError) throw cause;
-          throw new CodesignError('Failed to write workspace file', 'IPC_DB_ERROR', { cause });
-        }
 
-        runDb('files:write.upsert-design-file', () =>
-          upsertDesignFile(db, designId, normalizedPath, writeContent.storedContent),
-        );
-
-        if (writeContent.isBinaryAsset) {
           try {
-            const s = await stat(currentDestinationPath);
-            return {
-              path: normalizedPath,
-              kind: classifyWorkspaceFileKind(normalizedPath),
-              size: s.size,
-              updatedAt: s.mtime.toISOString(),
-              content: writeContent.storedContent,
-            };
+            return await readWorkspaceFileAt(currentWorkspacePath, normalizedPath);
           } catch (cause) {
-            throw new CodesignError('Failed to stat written workspace file', 'IPC_DB_ERROR', {
+            throw new CodesignError('Failed to read written workspace file', 'IPC_DB_ERROR', {
               cause,
             });
           }
-        }
-
-        try {
-          return await readWorkspaceFileAt(currentWorkspacePath, normalizedPath);
-        } catch (cause) {
-          throw new CodesignError('Failed to read written workspace file', 'IPC_DB_ERROR', {
-            cause,
-          });
-        }
+        }).catch((cause: unknown) => {
+          if (cause instanceof CodesignError) throw cause;
+          throw new CodesignError('Failed to write workspace file', 'IPC_DB_ERROR', { cause });
+        });
       });
     },
   );
@@ -2194,8 +2240,10 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
         const mediaType = mediaTypeForName(inputName);
         const kind = importKindFor(source, inputName, mediaType);
         const destination = await uniqueWorkspaceDestination(workspacePath, kind, inputName);
-        await mkdir(path.dirname(destination.absolutePath), { recursive: true });
-        await copyFile(sourcePath, destination.absolutePath);
+        await withWorkspaceFileWriter(destination.absolutePath, async () => {
+          await mkdir(path.dirname(destination.absolutePath), { recursive: true });
+          await copyFile(sourcePath, destination.absolutePath);
+        });
         const written = await stat(destination.absolutePath);
         imported.push({
           path: destination.relativePath,
@@ -2213,9 +2261,11 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
         const mediaType = blob.mediaType;
         const kind = importKindFor(source, inputName, mediaType);
         const destination = await uniqueWorkspaceDestination(workspacePath, kind, inputName);
-        await mkdir(path.dirname(destination.absolutePath), { recursive: true });
         const bytes = Buffer.from(blob.dataBase64, 'base64');
-        await writeFile(destination.absolutePath, bytes);
+        await withWorkspaceFileWriter(destination.absolutePath, async () => {
+          await mkdir(path.dirname(destination.absolutePath), { recursive: true });
+          await writeFile(destination.absolutePath, bytes);
+        });
         const written = await stat(destination.absolutePath);
         imported.push({
           path: destination.relativePath,

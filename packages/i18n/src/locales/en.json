@@ -213,6 +213,7 @@
   },
   "tweaks": {
     "title": "Tweaks",
+    "compatibilityNotice": "Live tweak compatibility mode is active for this artifact. Updating tweaks reinitializes artifact state. To preserve interaction state, read tokens during rendering in non-memoized components.",
     "openLabel": "Open tweaks panel",
     "close": "Close",
     "reset": "Reset to defaults",
@@ -861,6 +862,7 @@
     "commentNeedsSnapshot": "Generate a design first before leaving a comment",
     "commentCreateFailed": "Could not save the comment",
     "commentUpdateFailed": "Could not update the comment",
+    "commentsChangedDuringGeneration": "Comments changed during generation and were kept pending. Send them again to apply the updated edits.",
     "commentDeleteFailed": "Could not delete the comment",
     "noDesignToExport": "No design to export yet.",
     "exportedTo": "Exported to {{path}}"
