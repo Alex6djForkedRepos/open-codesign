@@ -19,6 +19,17 @@ import { Value } from '@sinclair/typebox/value';
 
 const Selector = Type.String({ minLength: 1, maxLength: 256 });
 const BoundedText = Type.String({ maxLength: 2000 });
+export const MAX_PREVIEW_STEPS = 16;
+const STEP_BUDGET_GUIDANCE =
+  `HARD LIMIT: ${MAX_PREVIEW_STEPS} steps per call, counting every action AND assertion. ` +
+  'Count before calling. Check one short journey from the initial screen, including setup and outcome assertions. ' +
+  'For a longer product, use independent short journeys; every preview call starts a fresh document. ' +
+  'Repeat required setup in each call; never send only the remaining tail expecting prior navigation or state. ' +
+  'If steps exceed the limit, the entire call is rejected before rendering or running any steps. ' +
+  `Correct the arguments and retry with at most ${MAX_PREVIEW_STEPS} steps; this validation error is recoverable. ` +
+  'Combine compatible visible/text/value assertions for the same selector in one assert step. ' +
+  'Keep critical outcome/shared-state assertions; do not blindly truncate a journey or remove checks to fit. ' +
+  'Report any untested remainder instead of claiming complete interaction coverage.';
 export const PreviewStep = Type.Union([
   Type.Object(
     { action: Type.Literal('click'), selector: Selector },
@@ -68,7 +79,12 @@ export const PreviewInput = Type.Object({
       { additionalProperties: false },
     ),
   ),
-  steps: Type.Optional(Type.Array(PreviewStep, { maxItems: 16 })),
+  steps: Type.Optional(
+    Type.Array(PreviewStep, {
+      maxItems: MAX_PREVIEW_STEPS,
+      description: STEP_BUDGET_GUIDANCE,
+    }),
+  ),
 });
 export type PreviewInput = Static<typeof PreviewInput>;
 
@@ -133,7 +149,7 @@ export const PreviewResult = Type.Object({
         ok: Type.Boolean(),
         reason: Type.Optional(Type.String()),
       }),
-      { maxItems: 16 },
+      { maxItems: MAX_PREVIEW_STEPS },
     ),
   ),
 });
@@ -205,7 +221,8 @@ export function makePreviewTool(
       'console errors (≤50), failing asset requests (≤20), DOM outline ' +
       '(nodes/width/height/load ms), and — on vision-capable models — a ' +
       'screenshot data URL. Call BEFORE `done` to self-check. ' +
-      'Optionally set viewport and up to 16 declarative steps (click/fill/select/press/assert). ' +
+      `Optionally set viewport and up to ${MAX_PREVIEW_STEPS} declarative steps (click/fill/select/press/assert). ` +
+      `${STEP_BUDGET_GUIDANCE} ` +
       'Use unique CSS selectors (max 256 chars); fill/value max 2000 chars. ' +
       'select chooses one enabled option by its exact value in a native single-selection <select>; ' +
       'disabled controls/options and multiple selects are rejected. ' +

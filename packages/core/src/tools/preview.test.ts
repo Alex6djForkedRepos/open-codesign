@@ -1,8 +1,15 @@
+import { Agent } from '@mariozechner/pi-agent-core';
+import {
+  type AssistantMessage,
+  createAssistantMessageEventStream,
+  getModel,
+} from '@mariozechner/pi-ai';
 import { CodesignError } from '@open-codesign/shared';
 import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_ASSET_ERRORS,
   MAX_CONSOLE_ENTRIES,
+  MAX_PREVIEW_STEPS,
   makePreviewTool,
   type PreviewInput,
   type PreviewResult,
@@ -20,6 +27,156 @@ function cannedResult(overrides: Partial<PreviewResult> = {}): PreviewResult {
 }
 
 describe('makePreviewTool', () => {
+  it('exposes the same fixed budget and fresh-journey recovery guidance in the tool and schema', () => {
+    const tool = makePreviewTool(vi.fn());
+    expect(MAX_PREVIEW_STEPS).toBe(16);
+    expect(tool.parameters.properties.steps.maxItems).toBe(16);
+    for (const description of [tool.description, tool.parameters.properties.steps.description]) {
+      expect(description).toContain('16 steps per call');
+      expect(description).toContain('every action AND assertion');
+      expect(description).toContain('independent short journeys');
+      expect(description).toContain('fresh document');
+      expect(description).toContain('Repeat required setup');
+      expect(description).toContain('Correct the arguments and retry');
+      expect(description).toContain('do not blindly truncate');
+      expect(description).toContain('untested remainder');
+    }
+  });
+
+  it('rejects an oversized direct call without executing or truncating its steps', async () => {
+    const runPreview = vi.fn();
+    const params: PreviewInput = {
+      path: 'App.jsx',
+      steps: Array.from({ length: 17 }, () => ({
+        action: 'assert',
+        selector: '#confirmation',
+        visible: true,
+      })),
+    };
+    await expect(makePreviewTool(runPreview).execute('oversized', params)).rejects.toThrow(
+      /Invalid preview input/,
+    );
+    expect(runPreview).not.toHaveBeenCalled();
+    expect(params.steps).toHaveLength(17);
+  });
+
+  it('lets native pi reject 17 steps before execution and continue with a corrected 16-step call', async () => {
+    const model = getModel('openai', 'gpt-4o-mini');
+    const runPreview = vi.fn().mockResolvedValue(cannedResult());
+    const tools = [makePreviewTool(runPreview)];
+    const setup: NonNullable<PreviewInput['steps']> = Array.from({ length: 15 }, (_, index) =>
+      index % 2 === 0
+        ? { action: 'click', selector: '#next' }
+        : { action: 'assert', selector: '#screen', visible: true, text: 'Booking' },
+    );
+    const oversized = [
+      ...setup,
+      { action: 'assert' as const, selector: '#confirmation', visible: true },
+      { action: 'assert' as const, selector: '#confirmation', text: 'Booking confirmed' },
+    ];
+    const steps: NonNullable<PreviewInput['steps']> = [
+      ...setup,
+      { action: 'assert', selector: '#confirmation', visible: true, text: 'Booking confirmed' },
+    ];
+    const response = (content: AssistantMessage['content'], stopReason: 'toolUse' | 'stop') => {
+      const stream = createAssistantMessageEventStream();
+      stream.push({
+        type: 'done',
+        reason: stopReason,
+        message: {
+          role: 'assistant',
+          content,
+          api: model.api,
+          provider: model.provider,
+          model: model.id,
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason,
+          timestamp: Date.now(),
+        },
+      });
+      return stream;
+    };
+    let turns = 0;
+    const observedErrors: string[] = [];
+    const agent = new Agent({
+      initialState: { model, tools },
+      streamFn: async (_model, context) => {
+        turns++;
+        if (turns === 1) {
+          return response(
+            [
+              {
+                type: 'toolCall',
+                id: 'too-long',
+                name: 'preview',
+                arguments: {
+                  path: 'App.jsx',
+                  viewport: { width: 1280, height: 1000 },
+                  steps: oversized,
+                },
+              },
+            ],
+            'toolUse',
+          );
+        }
+        if (turns === 2) {
+          const error = context.messages.at(-1);
+          if (error?.role !== 'toolResult' || !error.isError) {
+            throw new Error('Expected recoverable preview validation tool result');
+          }
+          observedErrors.push(JSON.stringify(error.content));
+          expect(runPreview).not.toHaveBeenCalled();
+          return response(
+            [
+              {
+                type: 'toolCall',
+                id: 'corrected',
+                name: 'preview',
+                arguments: {
+                  path: 'App.jsx',
+                  viewport: { width: 1280, height: 1000 },
+                  steps,
+                },
+              },
+            ],
+            'toolUse',
+          );
+        }
+        if (turns !== 3) throw new Error('Unexpected retry loop');
+        return response(
+          [{ type: 'text', text: 'Checked the short journey; remaining paths are untested.' }],
+          'stop',
+        );
+      },
+    });
+    await agent.prompt('Check a booking journey');
+    expect(turns).toBe(3);
+    expect(observedErrors[0]).toContain('Validation failed for tool');
+    expect(observedErrors[0]).toContain('must not have more than 16 items');
+    expect(runPreview).toHaveBeenCalledExactlyOnceWith({
+      path: 'App.jsx',
+      vision: false,
+      viewport: { width: 1280, height: 1000 },
+      steps,
+      signal: expect.any(AbortSignal),
+    });
+    expect(oversized).toHaveLength(17);
+    const results = agent.state.messages.filter((message) => message.role === 'toolResult');
+    expect(results.map((result) => result.isError)).toEqual([true, false]);
+    expect(agent.state.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      stopReason: 'stop',
+      content: [{ type: 'text', text: 'Checked the short journey; remaining paths are untested.' }],
+    });
+  });
+
   it('returns the trimmed preview result verbatim on a clean run', async () => {
     const runPreview = vi.fn().mockResolvedValue(cannedResult());
     const tool = makePreviewTool(runPreview);
