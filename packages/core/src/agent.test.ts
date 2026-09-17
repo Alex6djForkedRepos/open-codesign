@@ -1789,24 +1789,23 @@ describe('generateViaAgent()', () => {
     const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
     expect(sys).toContain('str_replace_based_edit_tool');
     expect(sys).toContain('Use `create` for new files');
-    expect(sys).toContain('write a small runnable product frame early');
-    expect(sys).toContain('optional frame preview');
-    expect(sys).toContain('small renderable checkpoint early');
-    expect(sys).toContain('An early coherent frame may be previewed before all journeys exist');
-    expect(sys).toContain('a few meaningful, runnable checkpoints');
-    expect(sys).toContain('Interleave major tool groups');
-    expect(sys).toContain('under 18 words');
+    expect(sys).toContain('write a small, styled, runnable slice');
+    expect(sys).toContain('before implementing secondary screens');
+    expect(sys).toContain('An early slice is a milestone');
+    expect(sys).toContain('rather than narrating each tool call');
     expect(sys).toContain('`str_replace`, or `insert`');
-    expect(sys).toContain('Do not emit `<artifact>`');
+    expect(sys).toContain('do not emit `<artifact>`');
     expect(sys).toContain('design source to `App.jsx`');
-    expect(sys).toContain('Local workspace assets and scaffolded files are allowed');
-    expect(sys).toContain('call `done(path)` as the final self-check');
+    expect(sys).toContain('Use local assets');
+    expect(sys).toContain('then `done(path)`');
     expect(sys).toContain('stop after 3 error rounds');
     expect(sys).not.toContain('text_editor.create(');
     expect(sys).not.toContain('view("index.html"');
     expect(sys).not.toContain('IOSDevice, IOSStatusBar');
     expect(sys).not.toContain('focused edits before previewing');
     expect(sys).not.toContain('still only a scaffold, loading state, skeleton');
+    expect(sys).not.toContain('under 18 words');
+    expect(sys.split('## Host tool contract')[1]?.length).toBeLessThanOrEqual(3_000);
   });
 
   it('exposes the current v0.2 toolset when host capabilities are present', async () => {
@@ -1957,6 +1956,9 @@ describe('generateViaAgent()', () => {
     const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
     expect(sys).toContain('User-routed preferences');
     expect(sys).not.toContain('The user explicitly declined');
+    expect(sys).toContain('this is a soft preference, not a prohibition');
+    expect(sys).not.toContain('Do not create controls');
+    expect(sys).not.toContain('Do not call `tweaks()`');
   });
 
   it('keeps selective tweaks guidance in auto mode', async () => {
@@ -2025,9 +2027,11 @@ describe('generateViaAgent()', () => {
       },
     );
     const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
-    expect(sys).toContain('inventory required assets');
+    expect(sys).toContain('Inventory required assets');
     expect(sys).toContain('One named bitmap slot equals one tool call');
     expect(sys).toContain('accurate `purpose`');
+    expect(sys).toContain('Only blocking assets should delay the first runnable slice');
+    expect(sys.split('## Host tool contract')[1]?.length).toBeLessThanOrEqual(3_000);
   });
 
   it('injects project context into the system stack while keeping attachments untrusted', async () => {

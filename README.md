@@ -243,11 +243,13 @@ Already using Claude Code or Codex? API-key provider configs import in one click
 
 ## Built-in taste
 
-Generic AI tools tend to produce generic output. Open CoDesign ships with **twelve built-in design skill modules** — slide decks, dashboards, landing pages, SVG charts, glassmorphism, editorial typography, heroes, pricing, footers, chat UIs, data tables, and calendars — plus a built-in taste layer that steers the model toward considered typography, purposeful whitespace, and meaningful color.
+Open CoDesign combines shared design guidance with **on-demand method skills** for composition, app navigation, mobile layouts, accessibility, charts, decks, and design-system handoff. Visual direction comes from the brief and references, not a fixed font or palette blacklist. Existing designs keep their language unless a redesign is requested.
 
-Every skill is available in every generation. Before the model writes a line of CSS, it selects the skills that fit the brief and reasons through layout intent, design-system coherence, and contrast, bringing higher-quality design behavior to whichever model you choose.
+The core prompt defines scope, workspace/runtime boundaries, and completion evidence. Selected skills provide focused techniques and examples, including source-backed tweak declarations and a `DESIGN.md` example checked against the app's validator. Resource indexes are available up front; full method bodies load only when requested by the agent.
 
-Add a `SKILL.md` to any project to teach the model your own taste.
+This approach synthesizes [OpenAI's current prompting guidance](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6), [Claude prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices), and [skill-authoring guidance](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices), reviewed on September 17, 2026. The [dated official frontend-design reference](https://github.com/anthropics/skills/blob/41bbe19d1a1a7eaab5e7bb9050a417e5c6cffc8f/skills/frontend-design/SKILL.md) informed an original rewrite; no external skill text is bundled. These are shared product rules, not assumptions that a private gateway model ID has a vendor's documented capabilities.
+
+Contract tests check loaded instructions, supported source examples, preference consistency, and size limits. They do not establish faster generation, visual quality, or working journeys in every model output; those require separate rendered evaluation. Existing profiles load their local template copies, so rebuilding the app alone does not replace older or customized method text. Template upgrades must preserve user-owned content.
 
 ---
 

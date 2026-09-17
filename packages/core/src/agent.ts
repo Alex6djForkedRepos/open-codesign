@@ -496,54 +496,28 @@ function agenticToolGuidance(input: {
   currentDesignName?: string | undefined;
 }): string {
   const titleStep = isAutoDesignName(input.currentDesignName)
-    ? '1. The current design title is still auto-generated. Call `set_title` once as the first tool call, before `set_todos`, `view`, `scaffold`, or file edits. Use a 2-5 word title that describes what is being designed.'
-    : '1. For a fresh design, call `set_title` once. For continuation or existing-source turns, do not call `set_title` unless the user explicitly asks to rename or pivot to a new artifact.';
+    ? 'The title is auto-generated: call `set_title` as the first tool call, before reading or editing.'
+    : 'For a fresh design, call `set_title` once; do not rename an existing design unless requested.';
   const tweakStep = explicitDisabled(input.featureProfile.tweaks)
-    ? `${input.inspectWorkspace ? '6' : '5'}. Do not call \`tweaks()\` unless the user explicitly asks for controls later.`
+    ? 'Do not call `tweaks()`; the user explicitly declined controls.'
     : featureModeValue(input.featureProfile.tweaks) === 'enabled'
-      ? `${input.inspectWorkspace ? '6' : '5'}. Create 2-5 high-leverage EDITMODE controls, then call \`tweaks()\`.`
-      : `${input.inspectWorkspace ? '6' : '5'}. Decide agentically whether \`tweaks()\` would materially improve iteration; do not rely on harness guesses.`;
-  const requiredSteps = [
+      ? 'After implementing useful source-backed controls, call `tweaks()` if available.'
+      : 'When available, decide agentically whether tweak controls improve iteration; inferred preferences are not prohibitions.';
+  return [
+    '## Host tool contract',
     titleStep,
-    '2. For multi-step or ambiguous work, call `set_todos` early with a short checklist. Do not delay a ready file mutation solely to add todos.',
-    '3. Load optional resources explicitly before relying on them. Use `skill(name)` for method guidance. When the request matches an available frame, shell, primitive, deck, report, or starter, call `scaffold({kind, destPath})` before writing the primary artifact; do not substitute a virtual `frames/*` or `skills/*` view for scaffolded workspace source.',
+    '- Use `set_todos` for dependent multi-step work; obey a host-required todo gate before mutation.',
     ...(input.inspectWorkspace
       ? [
-          '4. When the workspace brief says files or reference materials are present, call `inspect_workspace` before editing, then `view` the specific files you need.',
+          '- When the brief includes workspace files or references, call `inspect_workspace` before editing, then read the relevant files.',
         ]
       : []),
-    `${input.inspectWorkspace ? '5' : '4'}. Match the workspace files to the request. For visual/web work, write/edit the primary preview source at \`${DEFAULT_SOURCE_ENTRY}\`; for document-first work, create the requested Markdown/handoff file without inventing a visual shell.`,
-    tweakStep,
-    `${input.inspectWorkspace ? '7' : '6'}. Call \`preview(path)\` for previewable HTML/JSX/TSX files after the final mutation, then call \`done(path)\` as the final self-check. If done reports errors, fix and retry, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds.`,
-  ];
-  return [
-    '## Workspace output contract',
-    '',
-    '- The workspace filesystem is the deliverable. Chat text is never the artifact.',
-    `- For visual/web deliverables, write the primary design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`.`,
-    '- Multi-deliverable packages are allowed when useful: preview source, DESIGN.md, Markdown handoff docs, data files, and local assets can all belong to one design.',
-    '- For document-first requests such as design briefs, content outlines, or handoff notes, create the requested `.md` file directly and skip `App.jsx` unless a visual preview is also useful.',
-    '- For substantial fresh apps, write a small runnable product frame early, then complete linked journeys and shared state, then polish in focused edits. Each checkpoint must remain valid, complete JSX.',
-    '- Fresh visual sequence: `set_title` -> optional `set_todos`/`skill` -> required `scaffold` when a matching starter/frame/shell/primitive exists -> `create App.jsx` with a coherent runnable frame -> optional frame preview -> focused feature and polish edits -> full-flow `preview(App.jsx)`.',
-    '- Fresh document sequence: `set_title` -> optional `set_todos`/`skill` -> create the requested document file -> `done(path)` self-check.',
-    '- An early coherent frame with real content may be previewed before every journey exists. Do not preview a raw copied scaffold, Loading/Generating placeholder, or broken JSX. An early frame check is not final verification: finish the requested flows and check them before done.',
-    '- Existing-source sequence: optional `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. Do not edit an existing source from memory, and do not rebuild unless the user explicitly asks.',
-    '- If the design is still named `Untitled design` or `Untitled design N`, naming is not optional: call `set_title` before other work, even when a scaffold or reference source already exists.',
+    `- Write the primary visual design source to \`${DEFAULT_SOURCE_ENTRY}\` using \`str_replace_based_edit_tool\`; document-only outputs need no visual shell.`,
     '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
-    '- Do not emit `<artifact>` tags, fenced source blocks, raw HTML/JSX/CSS, or HTML wrappers in chat.',
-    '- Local workspace assets and scaffolded files are allowed. External scripts remain restricted by the base output rules.',
-    '- Interleave major tool groups with one short assistant progress sentence: what you are about to inspect/write/preview/fix, or what the preview showed. Keep it under 18 words and do not reveal hidden reasoning.',
-    '',
-    '## Tool loop',
-    '',
-    ...requiredSteps,
-    '',
-    '## File-edit discipline',
-    '',
-    '- Keep `old_str` small and unique. Large replacements waste context and are fragile.',
-    '- For existing files, call `view` in the same run before `str_replace` or `insert`; use the latest viewed text, not memory.',
-    '- A small single-screen artifact may be complete in its first create. For substantial apps, do not delay the first runnable frame to assemble one huge file; use a few coherent checkpoints and focused follow-up edits.',
-    '- Never view just to check whether an edit succeeded; the tool reports failures.',
+    '- Before editing an existing file, `view` its current contents in this run. Keep `old_str` small and unique. Successful edits need no redundant readback; inspect when subsequent work needs context.',
+    tweakStep,
+    '- Use only available tools and their live schemas. Batch independent reads; sequence dependent edits and preview checks.',
+    `- After the final relevant source mutation, use \`preview(path)\` when available, then \`done(path)\`. If done reports errors, repair them, but stop after ${MAX_DONE_ERROR_ROUNDS} error rounds and report the unresolved failure.`,
   ].join('\n');
 }
 
@@ -551,7 +525,7 @@ const IMAGE_ASSET_TOOL_GUIDANCE = [
   '## Bitmap asset generation',
   '',
   'Use `generate_image_asset` only for named or clearly beneficial bitmap slots: hero, product, poster, background, illustration, or rendered logo.',
-  'Before writing the design source, inventory required assets and request all bitmap assets in one batch. One named bitmap slot equals one tool call.',
+  'Inventory required assets and request independent slots together when useful. One named bitmap slot equals one tool call. Only blocking assets should delay the first runnable slice; add supporting assets in later coherent edits.',
   'Use inline SVG/CSS for charts, simple icons, flat geometric marks, gradients, and UI chrome.',
   'Each call needs a production prompt, accurate `purpose`, matching `aspectRatio`, meaningful `alt`, and optional `filenameHint`.',
   'Reference the returned local `assets/...` path from the design source.',

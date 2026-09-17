@@ -2,16 +2,14 @@
 schemaVersion: 1
 name: app-shell-navigation
 description: >
-  Designs product app shells with navigation hierarchy, headers, search,
-  breadcrumbs, command surfaces, responsive sidebars, and dense but readable
-  work areas. Use for SaaS dashboards, admin consoles, CRM/ERP tools,
-  developer tools, and internal operations products.
+  Connects product navigation, shared records, work areas, and recovery paths.
+  Use for app shells or changes that introduce a destination, detail view,
+  or new entry point into an existing user journey.
 aliases: [app-shell, sidebar, navigation, dashboard-shell, admin-shell, ia]
 dependencies: [artifact-composition, responsive-layout, accessibility-states]
 validationHints:
-  - shell has persistent navigation plus a clear active destination
-  - content area includes filters data actions and non-happy states
-  - primary journey connects screens through shared data and working back navigation
+  - visible destinations reach implemented content and retain relevant record actions
+  - new entry paths preserve shared state and return or recovery paths
 trigger:
   providers: ['*']
   scope: system
@@ -19,70 +17,46 @@ disable_model_invocation: false
 user_invocable: true
 ---
 
-## Shell Anatomy
+## Task-Oriented Shell
 
-A serious app shell has five zones:
+Organize navigation around the user's work. Use concrete labels, a clear
+active destination, and a visible page title/primary action. Make search,
+filters, details, and status information available where the task needs them;
+do not add account, notification, KPI, or chart modules just to complete a
+standard shell anatomy.
 
-1. Primary navigation: product areas, grouped and ordered by user workflow.
-2. Header: page title, breadcrumbs or context, search, notifications, account.
-3. Work area: the main task surface, not a marketing hero.
-4. Detail/action area: filters, inspector, drawer, side panel, or action bar.
-5. Status layer: loading, empty, error, sync, permission, or connection state.
+Choose sidebar, tabs, or compact mobile navigation based on available space.
+Keep the content hierarchy and selected destination clear as the viewport
+changes. Stable widths and feedback should prevent accidental layout jumps.
 
-Do not spend the first viewport on a sales headline when the user asked for a
-tool, dashboard, admin console, CRM, or operational product.
+## Shared Records And Reachable Actions
 
-## Navigation Rules
+Keep domain records at the app root or another shared owner, with stable IDs.
+Derive lists, details, filters, and counts from the same source. Route/screen
+state and selection should refer to those records rather than seed independent
+copies on each page.
 
-- Keep sidebar labels concrete: Overview, Pipeline, Accounts, Reports,
-  Settings. Avoid vague labels like Explore or Magic.
-- Show one active destination with shape/weight and color.
-- Use section headers only when there are 6+ items.
-- Put destructive/admin items away from primary task navigation.
-- Mobile/tablet shells should collapse navigation into a drawer or top menu,
-  while preserving the current page title and primary action.
+Trace a new navigation control to its destination, relevant action, and return
+path. Real `#section-id` anchors are valid for single-page dashboards.
+`href="#"`, an invented route, or a 404 is not an implemented destination.
+Omit unavailable destinations or disable them with a reason.
 
-## Connected Journeys
+When extending a journey, identify the affected entry points and the actions
+already available on the record. Preserve access directly or through a
+working detail link, not necessarily duplicate buttons on every screen.
 
-- For an app request, map the primary task and only its necessary supporting
-  screens; an explicitly single-screen brief stays single-screen.
-- Keep domain records at the app root, with stable IDs and derived counts,
-  filters, and details. Pass data/actions to readable screen components rather
-  than seeding independent copies of the same records on each screen.
-- Wire destinations, selected records, and back paths. Returning from a detail
-  or edit view must retain changes and the relevant list/filter context.
-- Create, edit, complete, and filter where relevant to the task; dependent
-  views must visibly agree. A toast alone cannot replace a data mutation.
-- Omit unnecessary destinations instead of filling the shell with dead nav.
-- Trace each new navigation item from its actual control to an implemented
-  destination and back. Use working in-app screen state or a supported route;
-  `href="#"`, an invented URL, or a 404 is not a destination. If unavailable,
-  disable it with a reason rather than exposing a broken link.
-  Real `#section-id` links to existing sections are valid for a single-page
-  dashboard; do not turn section navigation into unnecessary separate screens.
-- A newly reachable screen must preserve the record's core actions, directly
-  or through a working detail link. For example, a My Bookings list with
-  Reschedule must not strand the existing Cancel action on an unreachable
-  confirmation screen. Retain access to confirmation/detail and return to
-  the originating list with updated status. Do not add unrelated actions
-  merely to fill a checklist.
+Example: a new My Bookings list with Reschedule must still provide access to
+Cancel and booking details/confirmation. Cancellation reached from that list
+must change the same booking status and return to a useful view. Testing only
+the old confirmation screen misses this regression.
 
-## Work Area Density
+## Focus And Continuity
 
-Operational shells should include enough real structure:
+Back and close actions should restore useful list/filter context. Give newly
+displayed screens a meaningful heading and deliberate focus destination.
+Dialogs contain focus while open and return it to a sensible control on close.
+Keep navigation action names consistent across entry points.
 
-- KPI or status strip with units and trend when useful to the task, not to
-  fill space; derive summaries from the displayed records.
-- Filters/search/sort where records are shown.
-- At least one chart, table, list, kanban, timeline, or inspector.
-- Real rows/cards with owner, status, date, amount, severity, or next action.
-- Empty/loading/error state for one major panel.
-
-## Implementation Notes
-
-- Use CSS variables or `TWEAK_DEFAULTS` for shell width, accent, density,
-  radius, and theme.
-- Keep sidebar width stable; hover and active states must not shift layout.
-- Buttons and nav items should be at least 40px tall on desktop, 44px on touch.
-- If using a scaffolded app shell, adapt the data and page structure before
-  previewing; the copied shell is a starting point, not the final artifact.
+Use existing handlers and components when possible. Batch the smallest
+coherent changes and check the new entry path, mutation, dependent view, and
+recovery. Do not expand a narrow visual revision into unrelated flow work.

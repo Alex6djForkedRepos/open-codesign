@@ -23,64 +23,84 @@ user_invocable: true
 `DESIGN.md` is the workspace design-system baton. It is not a prompt, not a
 scratchpad, not a starter preset, and not a copy of a built-in brand reference.
 
-Use it to store stable design decisions that later artifacts should inherit:
-palette, typography, radius, spacing, component tokens, layout principles, tone,
-and do/don't rules. Keep transient task notes in chat or source comments, not in
-`DESIGN.md`.
+Store stable palette, typography, spacing, component behavior, layout, and tone.
+Record decisions future screens need, not tool logs or a second workflow.
 
 ## When To Create Or Update
 
-Create or update `DESIGN.md` when any of these are true:
+Maintain `DESIGN.md` when the work establishes reusable choices:
 
-- The user asks for more than one screen, slide, route, or artifact.
+- Multiple screens or artifacts share a visual language.
 - A brand reference or user-provided design system is adopted.
 - You introduce reusable components, shared tokens, or a named visual direction.
 - Existing source already uses stable tokens that should guide the next pass.
-- `done()` requires `DESIGN.md` because multiple design sources exist.
+- The host requires it for substantive work or multiple design sources.
 
-Do not create one for a tiny throwaway single-state mock unless stable tokens
-are already clear.
+For a small local revision, preserve the existing baton rather than restarting
+design-system work. A tiny throwaway mock needs no invented system unless the
+host explicitly requires one.
 
 ## Minimum Google-Compatible Shape
 
-Start with valid YAML frontmatter:
+This compact example is valid under the app's `validateDesignMd` contract.
+Adapt its values to the actual design; they are sample tokens, not brand data.
 
 ```md
 ---
 version: alpha
-name: Project Design System
-description: Short description of the artifact family
+name: Sample Product
 colors:
-  background: "#F7F3EC"
-  surface: "#FFFAF2"
-  text: "#10172B"
-  muted: "#5D6680"
-  accent: "#E0522D"
+  background: "#ffffff"
+  text: "#202124"
+  accent: "#28665c"
 typography:
-  display:
-    fontFamily: Georgia
-    fontSize: 56px
-    fontWeight: 700
-    lineHeight: 1.05
+  body:
+    fontFamily: system-ui
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.5
 rounded:
-  sm: 4px
-  md: 8px
-  lg: 16px
+  control: 8px
 spacing:
-  sm: 8px
-  md: 16px
-  lg: 32px
+  unit: 8px
 components:
-  button-primary:
+  primaryButton:
     backgroundColor: "{colors.accent}"
-    textColor: "#FFFFFF"
-    rounded: "{rounded.md}"
+    textColor: "#ffffff"
+    typography: "{typography.body}"
+    rounded: "{rounded.control}"
     padding: 12px
 ---
+
+## Overview
+
+Use the shared type, color, and spacing tokens across connected screens.
 ```
 
-Then add known body sections in this order: Overview, Colors, Typography,
-Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts.
+Put explanations in the Markdown body. If present, known sections follow this
+order: Overview, Colors, Typography, Layout, Elevation & Depth, Shapes,
+Components, Do's and Don'ts.
+
+### Accepted Types And Keys
+
+- Top-level keys: `version`, `name`, `description`, `colors`, `typography`,
+  `rounded`, `spacing`, `components`. Version/name/description are strings.
+- Colors are quoted sRGB hex strings, not objects, token aliases, or `oklch()`.
+- Each typography token is an object with required string `fontFamily`.
+  Optional keys: `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`,
+  `fontFeature`, `fontVariation`. Size/letter spacing use `px`, `em`, or `rem`
+  strings; weight is a number; line height is a number or dimension string.
+  Font feature/variation are strings.
+- Rounded values are dimension strings. Spacing accepts numbers or dimension
+  strings. Prefer explicit units when recording visual distances.
+- Each component is an object whose allowed properties are `backgroundColor`,
+  `textColor`, `typography`, `rounded`, `padding`, `size`, `height`, `width`.
+  Every property value is a string or string token reference, not an object
+  or number. `components.primaryButton.description` is invalid; put that
+  explanation under the Markdown `## Components` heading.
+
+Do not transfer arbitrary CSS properties or prose metadata into frontmatter.
+Respond to actual validator errors rather than hiding or bypassing the done gate.
 
 ## Rules
 
@@ -97,19 +117,13 @@ Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts.
 
 ## Human Choices And Source Tokens
 
-Treat current user-selected tweak values as design decisions, not temporary
-defaults to overwrite on the next agent turn. Read the latest source and
-`DESIGN.md`; preserve those choices unless the request overrides them.
-During broader agent edits that change stable tokens, explicitly synchronize
-their source values, relevant screen bindings, and corresponding `DESIGN.md`
-entries. Keep control defaults aligned with the rendered source and describe
-meaningful tradeoffs, not a catalog of pixel-level knobs.
+Read the latest source before broader token edits and preserve current user
+selections unless overridden. Reconcile changed source tokens, screen bindings,
+and corresponding baton entries explicitly. Matching names do not create a
+binding: `tweaks()` does not update unbound files or this document.
 
-The `tweaks()` tool does not automatically update unbound files or
-`DESIGN.md`. Do not promise cross-file propagation merely because keys have
-the same name. For a targeted marker-only tweak, preserve unrelated files;
-reconcile the baton during the next substantive token edit instead of silently
-expanding the user's request.
+For targeted marker-only tweaks, preserve unrelated files; reconcile the baton
+during the next substantive token edit rather than expanding a narrow request.
 
 ## Don't
 

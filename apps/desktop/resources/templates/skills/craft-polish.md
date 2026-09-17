@@ -2,14 +2,14 @@
 schemaVersion: 1
 name: craft-polish
 description: >
-  Integrates interaction and craft details that prevent generic AI UI:
-  real clickable states, view transitions, empty states, rhythm breaks, and
-  component-reference self-checks. Use before final `done`.
+  Resolves concrete visual and interaction details and exposes meaningful
+  source-backed design choices. Use for finishing a working artifact or
+  implementing useful tweak controls, not automatic extra polish rounds.
 aliases: [polish, interaction-polish, final-pass, craft-pass]
 dependencies: []
 validationHints:
-  - final artifact includes focus and hover states for actions
-  - operational surfaces include empty loading or error states
+  - visible controls perform their promised actions and preserve reachable recovery
+  - tweak defaults and consumers agree with the rendered design
 trigger:
   providers: ['*']
   scope: system
@@ -17,91 +17,33 @@ disable_model_invocation: false
 user_invocable: true
 ---
 
-## Interactive Minimum
+## Resolve What The User Notices
 
-Integrate craft into implementation, then audit before `done`; do not schedule automatic extra polish rounds. For app/tool surfaces, every clickable element must perform its implied action. Changing a record must update dependent views; a toast alone is not completion. Pure hover does not count. Omit unnecessary controls or mark them unavailable with a reason. Static one-pagers need behavior only for their visible controls, not extra app screens.
+Inspect the actual result for uneven spacing, weak hierarchy, awkward wrapping,
+layout jumps, unclear selection, or missing feedback. Improve specific issues
+without accumulating decorative features. Copy feedback, transitions, and
+status indicators are useful when they explain real behavior.
 
-Include:
+Check named component references and keep JSX and CSS readable across lines.
+Use complete component-sized edits, not a monolithic rewrite or a separate
+tool call for each property. Once the requested result works and the relevant
+evidence is sufficient, do not add another generic polish pass.
 
-- Observable completion of the core journey, with shared state across navigation and back.
-- Restrained view transitions when useful, without delaying navigation.
-- Hover, press, and focus styles on every action.
-- One empty-state variant for a list, grid, table, chart, or inbox.
-- Active navigation indicator that uses shape/weight, not color alone.
+## Consequential Human Choices
 
-## Empty, Loading, Error
+When requested or useful, expose a few decisions with meaningful visual
+effects: brand, density, type scale, implemented layout/emphasis, or content
+visibility. Do this after the main behavior works, not before the first slice.
+Defaults should reflect the brief and the user's current selections.
 
-Every operational surface should include at least one non-happy-path state:
-
-- Empty: explain what is missing, show one next action, and avoid sad blank panels.
-- Loading: use skeletons that match the final layout, not generic gray bars.
-- Error: include a human-readable cause and a retry or fallback action.
-- Offline/disabled: use opacity plus text/shape, not color alone.
-
-## Craft Surplus
-
-Choose useful details that support the task, not a quota:
-
-- Stateful badge or counter with a small animation.
-- Keyboard shortcut chip.
-- Copy feedback.
-- Dismissible toast/banner.
-- Tooltip with directional arrow.
-- Relative-time tick.
-- Segmented control.
-- Accordion or drawer.
-- Deliberate visual rhythm break.
-
-## Motion And Focus
-
-- Keep UI motion under 300ms, usually 120-200ms.
-- Use `transform` and `opacity` for transitions; avoid layout-jank animations.
-- Respect `prefers-reduced-motion` for looping or large movement.
-- Focus rings must be visible on keyboard navigation.
-- Hover and pressed states should change at least two cues: surface, border, shadow, icon, text weight, or transform.
-
-## Final Self-Check
-
-Before `done`:
-
-- Audit every JSX `<PascalCase />` reference and confirm a matching component definition or runtime-provided component exists.
-- Audit the default view plus hidden tabs, drawers, modals, and accordions. When the live preview tool supports interaction steps, exercise the primary path and assert the changed state after navigating back; a mental walkthrough is not an executed test.
-- When adding a destination, check the changed entry path through its core record action and return/recovery path. Passing checks on the old confirmation screen does not prove actions are reachable from a new list. Reuse existing working flows and batch related checks; do not repeat the whole app suite after every cosmetic edit.
-- Check that no card, button, tab, chart, or list row shifts size unexpectedly on hover/state change.
-- Remove debug labels, placeholder copy, "TODO", "lorem", fake filenames, and generic names.
-- Ensure `TWEAK_DEFAULTS` exposes only meaningful controls, not every pixel.
-
-## Human Design Decisions
-
-When controls are requested or useful, expose 2-5 consequential choices after
-the main behavior works, not before the first working frame. Prioritize the
-largest useful visual differences: primary brand token, reading density,
-type scale, card layout/emphasis, or content visibility. Do not add controls
-or questions to narrow revisions, documents, or throwaway artifacts merely
-to satisfy a quota.
-
-- Ground the default in the brief and current source. Name the tradeoff,
-  such as reading density with comfortable/compact options, rather than
-  exposing implementation names or every padding value.
-- Derive declarations from stable source. Every default must equal its
-  rendered starting value; use meaningful enum options and safe number
-  bounds/steps. Include only variants actually implemented in the source.
-- Bind shared choices across relevant screens. Use `--ocd-tweak-*` CSS
-  properties for visual values, not one-time reads that leave rendered
-  styles unchanged. A number, enum, or boolean existing in JSON is not a
-  binding; a layout/visibility variant needs working runtime behavior.
-- Do not imply backend, authentication, or payment capability with a switch.
-  Do not promise arbitrary cross-file updates from `tweaks()`; it discovers
-  declared values rather than implementing their consumers.
-- Preserve the user's current knob choices through later edits unless the
-  request overrides them. Read the latest source before changing defaults.
-
-### Source Declaration
+Trace each key to its actual consumers across relevant screens. CSS variables
+serve ordinary visual values; structural JSX must implement its enum/boolean
+variants. A key in JSON alone does nothing. Do not imply real authentication,
+payment, or backend capability with a switch.
 
 The panel humanizes camelCase keys; enum options are plain strings, not
-label/value objects. Explain the tradeoff briefly in the handoff rather than
-inventing schema label fields. For source that actually implements these
-choices, the existing declaration format is:
+label/value objects. Explain the design tradeoff in the handoff, not invented
+schema fields. For source that implements these choices:
 
 ```js
 const TWEAK_SCHEMA = /*TWEAK-SCHEMA-BEGIN*/{
@@ -116,34 +58,28 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 ```
 
-Schema keys must match the declared defaults. Use `kind: "color"` for color
-controls; do not turn arbitrary strings into enum choices without implementing
-them. Structural JSX may consume `TWEAK_DEFAULTS` when the runtime reruns it
-with updated values; for example, `showNotes` must actually govern the notes
-content and `density` must select implemented layouts. Ordinary visual values
-should still use CSS custom properties. Do not copy this declaration into
-unbound source merely to populate a panel.
+Schema keys match defaults. Use `kind: "color"` for colors. Constrain numbers
+and options to usable implemented values. `showNotes` must govern notes
+content; `density` must select a real layout. The runtime can rerun structural
+JSX with updated `TWEAK_DEFAULTS`; do not capture stale derived state.
 
-### Check The Actual Effect
+Check a representative alternate and relevant range boundaries, then restore
+the user's defaults. Use artifact controls if present; otherwise edit the exact
+bound source values, preview, and restore. Do not leave a test value behind.
+Artifact preview cannot click the host tweak panel: these checks do not prove
+host-panel interaction or persistence. `tweaks()` does not synchronize unbound
+files or `DESIGN.md`.
 
-Audit each declared key through its consumers, including dependent screens.
-Check representative alternate values and range boundaries for their intended
-visual effect and readable layouts, then restore the user's defaults.
-If controls exist inside the artifact, use available preview steps to change
-them and assert the effect. Otherwise, use focused source edits to the exact
-bound values and preview the alternate, then restore and recheck the original.
-Do not leave a test value in the final source.
+## Focused Journey Evidence
 
-Artifact preview cannot click the host tweak panel. A source-binding audit or
-previewed source variant does not prove host-panel interaction or persistence;
-state that limit honestly. Do not add fake in-artifact controls just to claim
-the host panel was tested.
+Check changed entry points, not only the original flow. For a newly added
+booking list, cancellation must still be reachable and update the same record
+through a direct action or detail view. Include a useful return path and
+keyboard/focus behavior. A mental walkthrough is not an executed test.
 
-## Bounded Preview Check
-
-If the live `preview` schema supports `viewport` and `steps`, use unique
-selectors from the actual source and explicit assertions. For example, for
-a task app whose source defines these IDs:
+Use the live preview schema. When it supports interaction steps, select unique
+elements from the actual source and assert outcomes, not just successful clicks.
+For a task app with these IDs:
 
 ```json
 {
@@ -161,10 +97,11 @@ a task app whose source defines these IDs:
 }
 ```
 
-Keep each call within the tool's step limit. Use `press` with `Enter`,
-`Escape`, or `Tab` for supported keyboard checks. Text assertions match
-contained text; value assertions match exact input values. Inspect the
-structured step results, not just console errors or the final screenshot.
-Repair concrete failures and recheck the affected path. Separate calls may
-reset state; they do not prove persistence. If steps are unavailable, disclose
-that interactions were not exercised instead of claiming they passed.
+Use `select` only if the live schema supports it: it chooses an enabled option
+by exact value in a native single-selection select. `press` supports Enter,
+Escape, and Tab; it does not prove focus landed correctly without observable
+evidence. Assertions support visible state, contained text, and exact input
+value. Read structured step results and the final view. Calls may reset state;
+stay within current step limits rather than pretending calls share a session.
+Repair observed failures and recheck affected paths. Report unavailable checks
+instead of claiming the whole product was tested.
