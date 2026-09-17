@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type Handler = (event: unknown, raw: unknown) => unknown;
 
 const handlers = vi.hoisted(() => new Map<string, Handler>());
+const fixtureRootName = vi.hoisted(() => `codesign-gen-${process.pid}-${Date.now()}`);
 const coreCalls = vi.hoisted(() => ({
   generateInputs: [] as unknown[],
   routeResults: [] as Array<{
@@ -67,7 +68,7 @@ generateControl.reset();
 
 vi.mock('../electron-runtime', () => ({
   app: {
-    getPath: vi.fn(() => path.join(os.tmpdir(), 'open-codesign-generate-rename-tests')),
+    getPath: vi.fn(() => path.join(os.tmpdir(), fixtureRootName)),
   },
   ipcMain: {
     handle: vi.fn((channel: string, handler: Handler) => {
@@ -218,8 +219,9 @@ function getHandler(channel: string): Handler {
 }
 
 describe('generate IPC workspace rename coordination', () => {
-  const documentsRoot = path.join(os.tmpdir(), 'open-codesign-generate-rename-tests');
+  const documentsRoot = path.join(os.tmpdir(), fixtureRootName);
   const defaultWorkspaceRoot = path.join(documentsRoot, 'CoDesign');
+  let pendingFixtureGeneration: Promise<unknown> | null = null;
 
   function initTestDb() {
     return {
@@ -234,6 +236,7 @@ describe('generate IPC workspace rename coordination', () => {
     handlers.clear();
     coreCalls.generateInputs.length = 0;
     coreCalls.routeResults.length = 0;
+    pendingFixtureGeneration = null;
     generateControl.reset();
     await rm(documentsRoot, { recursive: true, force: true });
     await mkdir(defaultWorkspaceRoot, { recursive: true });
@@ -241,7 +244,11 @@ describe('generate IPC workspace rename coordination', () => {
 
   afterEach(async () => {
     generateControl.release();
-    await rm(documentsRoot, { recursive: true, force: true });
+    try {
+      await pendingFixtureGeneration;
+    } finally {
+      await rm(documentsRoot, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -315,8 +322,9 @@ describe('generate IPC workspace rename coordination', () => {
         designId: design.id,
       }),
     );
-    await generateControl.started;
+    pendingFixtureGeneration = pending;
     try {
+      await Promise.race([generateControl.started, pending]);
       const state = vi.mocked(routeRunPreferences).mock.calls[0]?.[0].workspaceState;
       expect(state).toMatchObject({
         hasSource: false,
@@ -359,7 +367,7 @@ describe('generate IPC workspace rename coordination', () => {
       generateControl.release();
       await pending;
     }
-  });
+  }, 15_000);
 
   it('allows set_title rename to settle while the agent generation is still running', async () => {
     const db = initTestDb();
