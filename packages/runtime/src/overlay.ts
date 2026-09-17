@@ -29,6 +29,17 @@ export const OVERLAY_SCRIPT = `(function() {
   }
   var currentMode = 'default';
 
+  window.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape' || e.isComposing || e.keyCode === 229) return;
+    // Defer until artifact dialogs and other window listeners can consume Escape.
+    queueMicrotask(function() {
+      if (e.defaultPrevented || e.cancelBubble) return;
+      try {
+        window.parent.postMessage({ __codesign: true, type: 'PREVIEW_ESCAPE' }, '*');
+      } catch (err) { warnOnce('postMessage PREVIEW_ESCAPE failed', err); }
+    });
+  });
+
   var watchedSelectors = [];
   var rectsFrameHandle = 0;
 

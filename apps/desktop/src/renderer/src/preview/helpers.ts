@@ -104,9 +104,11 @@ export type AllowedPreviewMessageType =
   | 'ELEMENT_SELECTED'
   | 'ELEMENT_SELECTION_CLEARED'
   | 'IFRAME_ERROR'
-  | 'ELEMENT_RECTS';
+  | 'ELEMENT_RECTS'
+  | 'PREVIEW_ESCAPE';
 
 export interface PreviewMessageHandlers {
+  onPreviewEscape?: () => void;
   onSelectionCleared?: () => void;
   onElementSelected: (msg: OverlayMessage) => void;
   onIframeError: (msg: IframeErrorMessage) => void;
@@ -130,6 +132,9 @@ export function handlePreviewMessage(
   }
 
   switch (envelope.type) {
+    case 'PREVIEW_ESCAPE':
+      handlers.onPreviewEscape?.();
+      return { status: 'handled', type: envelope.type };
     case 'ELEMENT_SELECTION_CLEARED':
       handlers.onSelectionCleared?.();
       return { status: 'handled', type: envelope.type };

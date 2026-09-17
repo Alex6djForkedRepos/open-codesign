@@ -67,6 +67,12 @@
   box-shadow: var(--shadow-elevated);
 }
 
+.codesign-preview-fullscreen {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
 .codesign-preview-menu-compact {
   width: min(var(--size-menu-compact), calc(100vw - var(--space-4)));
 }

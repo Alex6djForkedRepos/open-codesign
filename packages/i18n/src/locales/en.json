@@ -182,6 +182,11 @@
     "dismissErrors": "Dismiss preview errors",
     "zoom": "Zoom",
     "zoomFit": "Fit",
+    "fullscreen": "Fullscreen preview",
+    "exitFullscreen": "Exit fullscreen",
+    "fullscreenHint": "Expand the runnable preview inside this window",
+    "exitFullscreenHint": "Restore panels (Escape)",
+    "fullscreenUnavailable": "Open a runnable JSX or HTML preview to use fullscreen",
     "viewport": {
       "desktop": "Desktop preview",
       "tablet": "Tablet preview",

@@ -1,5 +1,5 @@
 import { useT } from '@open-codesign/i18n';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { CommentsPanel } from './components/comment/CommentsPanel';
 import { DeleteDesignDialog } from './components/DeleteDesignDialog';
 import { DesignsView } from './components/DesignsView';
@@ -49,6 +49,9 @@ export function App() {
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const setInteractionMode = useCodesignStore((s) => s.setInteractionMode);
   const _sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
+  const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
+  const setPreviewFullscreen = useCodesignStore((s) => s.setPreviewFullscreen);
+  const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const activeReportLocalId = useCodesignStore((s) => s.activeReportLocalId);
   const closeReportDialog = useCodesignStore((s) => s.closeReportDialog);
 
@@ -57,6 +60,11 @@ export function App() {
     Math.max(320, Math.round(window.innerWidth * 0.25)),
   );
   const [isResizing, setIsResizing] = useState(false);
+
+  useLayoutEffect(() => {
+    void currentDesignId;
+    setPreviewFullscreen(false);
+  }, [currentDesignId, setPreviewFullscreen]);
 
   const [updateStore] = useState(() => createUpdateStore({ dismissedVersion: '' }));
   useUpdateWiring(updateStore);
@@ -152,7 +160,8 @@ export function App() {
       },
       {
         combo: 'escape',
-        handler: () => {
+        handler: (event: KeyboardEvent) => {
+          if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
           if (designToDelete) {
             requestDeleteDesign(null);
             return;
@@ -167,6 +176,10 @@ export function App() {
           }
           if (interactionMode !== 'default') {
             setInteractionMode('default');
+            return;
+          }
+          if (previewFullscreen) {
+            setPreviewFullscreen(false);
             return;
           }
           if (view === 'settings') {
@@ -184,6 +197,8 @@ export function App() {
       designToDelete,
       designToRename,
       interactionMode,
+      previewFullscreen,
+      setPreviewFullscreen,
       setInteractionMode,
       setView,
       closeDesignsView,
@@ -237,7 +252,11 @@ export function App() {
           >
             <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex relative">
               {isResizing && <div className="absolute inset-0 z-20 cursor-col-resize" />}
-              <div className="relative shrink-0" style={{ width: sidebarWidth }}>
+              <div
+                hidden={previewFullscreen}
+                className="relative shrink-0"
+                style={{ width: sidebarWidth }}
+              >
                 <Sidebar prefillPrompt={prefillPrompt} />
                 <div
                   role="separator"

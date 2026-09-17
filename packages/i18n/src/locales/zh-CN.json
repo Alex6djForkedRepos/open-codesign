@@ -182,6 +182,11 @@
     "dismissErrors": "关闭预览错误",
     "zoom": "缩放",
     "zoomFit": "适配",
+    "fullscreen": "全屏预览",
+    "exitFullscreen": "退出全屏",
+    "fullscreenHint": "在当前窗口内展开可运行的预览",
+    "exitFullscreenHint": "恢复面板（Escape）",
+    "fullscreenUnavailable": "打开可运行的 JSX 或 HTML 预览后可全屏查看",
     "viewport": {
       "desktop": "桌面预览",
       "tablet": "平板预览",

@@ -184,6 +184,29 @@ describe('OVERLAY_SCRIPT fragment navigation', () => {
   });
 });
 
+describe('OVERLAY_SCRIPT fullscreen Escape forwarding', () => {
+  it('waits for artifact handlers before forwarding an unconsumed Escape', async () => {
+    const harness = runOverlayWithHarness();
+    harness.windowListeners.get('keydown')?.({ key: 'Escape' });
+    expect(harness.postedToParent).toEqual([]);
+    await Promise.resolve();
+    expect(harness.postedToParent).toContainEqual({ __codesign: true, type: 'PREVIEW_ESCAPE' });
+  });
+
+  it('respects artifact dialogs, IME composition and non-Escape keys', async () => {
+    const harness = runOverlayWithHarness();
+    const onKey = harness.windowListeners.get('keydown');
+    const consumed = { key: 'Escape', defaultPrevented: false };
+    onKey?.(consumed);
+    consumed.defaultPrevented = true;
+    onKey?.({ key: 'Escape', isComposing: true });
+    onKey?.({ key: 'Escape', keyCode: 229 });
+    onKey?.({ key: 'Enter' });
+    await Promise.resolve();
+    expect(harness.postedToParent).toEqual([]);
+  });
+});
+
 describe('OVERLAY_SCRIPT stable clicked targets', () => {
   function select(h: ListenerHarness, target: object) {
     h.windowListeners.get('message')?.({

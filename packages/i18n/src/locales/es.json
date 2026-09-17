@@ -182,6 +182,11 @@
     "dismissErrors": "Descartar errores de vista previa",
     "zoom": "Zoom",
     "zoomFit": "Ajustar",
+    "fullscreen": "Vista previa a pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa",
+    "fullscreenHint": "Ampliar la vista previa ejecutable dentro de esta ventana",
+    "exitFullscreenHint": "Restaurar paneles (Escape)",
+    "fullscreenUnavailable": "Abre una vista previa ejecutable de JSX o HTML para usar pantalla completa",
     "viewport": {
       "desktop": "Vista de escritorio",
       "tablet": "Vista de tablet",

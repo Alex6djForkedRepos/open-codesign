@@ -190,6 +190,7 @@ export interface CodesignState {
   selectedElement: SelectedElement | null;
   previewZoom: number;
   previewZoomMode: PreviewZoomMode;
+  previewFullscreen: boolean;
   interactionMode: InteractionMode;
   // Sidebar v2 chat state
   chatMessages: ChatMessageRow[];
@@ -329,6 +330,7 @@ export interface CodesignState {
   setPreviewZoom: (zoom: number) => void;
   setPreviewZoomFit: (zoom: number) => void;
   setPreviewZoomMode: (mode: PreviewZoomMode) => void;
+  setPreviewFullscreen: (fullscreen: boolean) => void;
   setInteractionMode: (mode: InteractionMode) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
@@ -539,6 +541,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   selectedElement: null,
   previewZoom: 100,
   previewZoomMode: 'fit' as PreviewZoomMode,
+  previewFullscreen: false,
   interactionMode: 'default' as InteractionMode,
   chatMessages: [],
   chatLoaded: false,
@@ -741,6 +744,10 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
     set({ previewZoomMode: mode });
   },
 
+  setPreviewFullscreen(previewFullscreen) {
+    set({ previewFullscreen });
+  },
+
   setInteractionMode(mode: InteractionMode) {
     if (mode === 'default') {
       set({ interactionMode: mode, selectedElement: null, commentBubble: null });
@@ -766,7 +773,12 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
       view,
       previousView: prev === view ? get().previousView : prev,
       ...(view !== 'workspace'
-        ? { interactionMode: 'default' as const, selectedElement: null, commentBubble: null }
+        ? {
+            previewFullscreen: false,
+            interactionMode: 'default' as const,
+            selectedElement: null,
+            commentBubble: null,
+          }
         : {}),
     });
   },
@@ -777,6 +789,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
       view: 'settings',
       previousView: prev === 'settings' ? get().previousView : prev,
       settingsTab: tab,
+      previewFullscreen: false,
       interactionMode: 'default',
       selectedElement: null,
       commentBubble: null,
@@ -806,7 +819,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         canvasTabs: result.tabs,
         activeCanvasTab: result.index,
         ...(result.index !== s.activeCanvasTab
-          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          ? { previewFullscreen: false, selectedElement: null, commentBubble: null, liveRects: {} }
           : {}),
       };
     });
@@ -819,7 +832,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
         canvasTabs: result.tabs,
         activeCanvasTab: result.activeIndex,
         ...(index === s.activeCanvasTab
-          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          ? { previewFullscreen: false, selectedElement: null, commentBubble: null, liveRects: {} }
           : {}),
       };
     });
@@ -831,7 +844,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
       return {
         activeCanvasTab: index,
         ...(index !== s.activeCanvasTab
-          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          ? { previewFullscreen: false, selectedElement: null, commentBubble: null, liveRects: {} }
           : {}),
       };
     });
@@ -839,6 +852,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
 
   resetCanvasTabs() {
     set({
+      previewFullscreen: false,
       canvasTabs: DEFAULT_CANVAS_TABS,
       activeCanvasTab: 0,
       selectedElement: null,

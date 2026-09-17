@@ -18,6 +18,7 @@ import {
 } from '../lib/file-ingest';
 import { EmptyState } from '../preview/EmptyState';
 import { ErrorState } from '../preview/ErrorState';
+import { handlePreviewFullscreenEscape } from '../preview/fullscreen';
 import {
   formatIframeError,
   handlePreviewMessage,
@@ -330,6 +331,9 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   const designs = useCodesignStore((s) => s.designs);
   const chatMessages = useCodesignStore((s) => s.chatMessages);
   const canvasTabs = useCodesignStore((s) => s.canvasTabs);
+  const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
+  const setPreviewFullscreen = useCodesignStore((s) => s.setPreviewFullscreen);
+  const [filePreviewAvailable, setFilePreviewAvailable] = useState(false);
   const activeCanvasTab = useCodesignStore((s) => s.activeCanvasTab);
   const errorMessage = useCodesignStore((s) => s.errorMessage);
   const retry = useCodesignStore((s) => s.retryLastPrompt);
@@ -485,6 +489,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
       if (!isTrustedPreviewMessageSource(event.source, iframeRef.current?.contentWindow)) return;
 
       const outcome = handlePreviewMessage(event.data, {
+        onPreviewEscape: handlePreviewFullscreenEscape,
         onSelectionCleared: () => useCodesignStore.getState().clearCanvasElement(),
         onElementSelected: (msg) => {
           if (useCodesignStore.getState().interactionMode !== 'comment') return;
@@ -645,9 +650,11 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
       />
     );
   } else if (activeTab?.kind === 'files') {
-    body = <FilesTabView />;
+    body = <FilesTabView onFullscreenAvailable={setFilePreviewAvailable} />;
   } else if (activeTab?.kind === 'file') {
-    body = <WorkspaceFilePreview path={activeTab.path} />;
+    body = (
+      <WorkspaceFilePreview path={activeTab.path} onFullscreenAvailable={setFilePreviewAvailable} />
+    );
   } else {
     // Pool slots stay mounted even when the current design has no preview —
     // background iframes for recently-visited designs keep their documents
@@ -686,6 +693,13 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   }
 
   const hasTabs = canvasTabs.length > 0;
+  const canFullscreen =
+    activeTab?.kind === 'files' || activeTab?.kind === 'file'
+      ? filePreviewAvailable
+      : activeHasPreview;
+  useEffect(() => {
+    if (!canFullscreen) setPreviewFullscreen(false);
+  }, [canFullscreen, setPreviewFullscreen]);
   const isWelcome = isPreviewPaneWelcomeState({
     activeTab,
     tabCount: canvasTabs.length,
@@ -699,8 +713,10 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
       <div className={PREVIEW_PANE_LAYOUT_CLASSES.stage}>
         {isWelcome ? null : (
           <div className="flex flex-wrap items-stretch justify-between gap-[var(--space-2)] border-b border-[var(--color-border-muted)] bg-[var(--color-background-secondary)] pl-[var(--space-2)]">
-            {hasTabs ? <CanvasTabBar /> : <div />}
-            <PreviewToolbar />
+            <div hidden={previewFullscreen} className="min-w-0 flex">
+              {hasTabs ? <CanvasTabBar /> : <div />}
+            </div>
+            <PreviewToolbar canFullscreen={canFullscreen} />
           </div>
         )}
         <CanvasErrorBar />

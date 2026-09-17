@@ -182,6 +182,11 @@
     "dismissErrors": "Dispensar erros da pré-visualização",
     "zoom": "Zoom",
     "zoomFit": "Ajustar",
+    "fullscreen": "Prévia em tela cheia",
+    "exitFullscreen": "Sair da tela cheia",
+    "fullscreenHint": "Expandir a prévia executável nesta janela",
+    "exitFullscreenHint": "Restaurar painéis (Escape)",
+    "fullscreenUnavailable": "Abra uma prévia executável de JSX ou HTML para usar tela cheia",
     "viewport": {
       "desktop": "Prévia desktop",
       "tablet": "Prévia tablet",

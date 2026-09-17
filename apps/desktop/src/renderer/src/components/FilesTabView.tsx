@@ -45,6 +45,7 @@ import { usePreviewErrorLifecycle } from '../hooks/usePreviewErrorLifecycle';
 import type { FileTreeNode } from '../lib/file-tree';
 import { classifyMarkdownHref } from '../lib/markdown-links';
 import { workspacePathComparisonKey } from '../lib/workspace-path';
+import { handlePreviewFullscreenEscape } from '../preview/fullscreen';
 import {
   formatIframeError,
   handlePreviewMessage,
@@ -975,6 +976,7 @@ export function isPreviewSourceUsableForSelectedPath(input: {
 }
 
 interface WorkspaceFilePreviewProps {
+  onFullscreenAvailable?: ((available: boolean) => void) | undefined;
   path: string;
   file?: DesignFileEntry | null | undefined;
   files?: DesignFileEntry[] | null | undefined;
@@ -1027,6 +1029,7 @@ export function createWorkspaceFilePreviewMessageHandlers({
   pushIframeError,
 }: WorkspaceFilePreviewMessageHandlerInput): PreviewMessageHandlers {
   return {
+    onPreviewEscape: handlePreviewFullscreenEscape,
     onSelectionCleared: () => onSelectionCleared?.(),
     onElementSelected: (msg) => {
       selectCanvasElement({
@@ -1522,6 +1525,7 @@ export function WorkspaceFilePreview({
   file,
   files,
   interactive = true,
+  onFullscreenAvailable,
 }: WorkspaceFilePreviewProps) {
   const t = useT();
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
@@ -1535,6 +1539,7 @@ export function WorkspaceFilePreview({
   const comments = useCodesignStore((s) => s.comments);
   const currentSnapshotId = useCodesignStore((s) => s.currentSnapshotId);
   const commentBubble = useCodesignStore((s) => s.commentBubble);
+  const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
   const { files: observedFiles } = useDesignFiles(files ? null : currentDesignId);
   const workspaceFiles = files ?? observedFiles;
   const currentDesign = designs.find((d) => d.id === currentDesignId);
@@ -1784,6 +1789,11 @@ export function WorkspaceFilePreview({
     if (!openingSavedComment) state.clearCanvasElement();
   }, [currentDesignId, path, srcDoc, interactive]);
 
+  useEffect(() => {
+    onFullscreenAvailable?.(renderable && Boolean(srcDoc) && !workspaceDevServerRequired);
+    return () => onFullscreenAvailable?.(false);
+  }, [renderable, srcDoc, workspaceDevServerRequired, onFullscreenAvailable]);
+
   if (nativePreview) {
     const url = workspaceUrlForFile({ designId: currentDesignId, filePath: path });
     if (url) return <NativeFilePreview kind={previewKind} path={path} url={url} />;
@@ -1843,28 +1853,35 @@ export function WorkspaceFilePreview({
         }}
         className="w-full h-full bg-white border-0 block"
       />
-      {showTweakPanel ? (
-        <Suspense fallback={null}>
-          {activePreviewSource ? (
-            <TweakPanel
-              key={`${currentDesignId}:${activePreviewSource.path}`}
-              iframeRef={iframeRef}
-              source={activePreviewSource}
-              onPersist={setPreviewSource}
-            />
-          ) : null}
-        </Suspense>
-      ) : null}
+      <div hidden={previewFullscreen}>
+        {showTweakPanel ? (
+          <Suspense fallback={null}>
+            {activePreviewSource ? (
+              <TweakPanel
+                key={`${currentDesignId}:${activePreviewSource.path}`}
+                iframeRef={iframeRef}
+                source={activePreviewSource}
+                onPersist={setPreviewSource}
+              />
+            ) : null}
+          </Suspense>
+        ) : null}
+      </div>
     </>
   );
 }
 
-export function FilesTabView() {
+export function FilesTabView({
+  onFullscreenAvailable,
+}: {
+  onFullscreenAvailable?: ((available: boolean) => void) | undefined;
+}) {
   const t = useT();
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
   const openFileTab = useCodesignStore((s) => s.openCanvasFileTab);
   const currentPreviewSource = useCodesignStore((s) => s.previewSource);
+  const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
   const { files, tree: fileTree, loadDirectory } = useLazyDesignFileTree(currentDesignId);
 
   const defaultPath = useMemo(() => defaultWorkspacePreviewPath(files), [files]);
@@ -1973,6 +1990,7 @@ export function FilesTabView() {
       if (externalFallbackPath) {
         return (
           <WorkspaceFilePreview
+            onFullscreenAvailable={onFullscreenAvailable}
             path={externalFallbackPath}
             file={externalFallbackFile}
             files={files}
@@ -1992,6 +2010,7 @@ export function FilesTabView() {
       ) {
         return (
           <WorkspaceFilePreview
+            onFullscreenAvailable={onFullscreenAvailable}
             path={selectedPath}
             file={selectedFile}
             files={files}
@@ -2006,6 +2025,7 @@ export function FilesTabView() {
     if (selectedPath) {
       return (
         <WorkspaceFilePreview
+          onFullscreenAvailable={onFullscreenAvailable}
           path={selectedPath}
           file={selectedFile}
           files={files}
@@ -2153,6 +2173,7 @@ export function FilesTabView() {
       <div className="relative flex h-full min-h-0">
         {isFileBrowserResizing ? <div className="absolute inset-0 z-20 cursor-col-resize" /> : null}
         <aside
+          hidden={previewFullscreen}
           className="shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] overflow-y-auto flex flex-col"
           style={{ width: fileBrowserWidth }}
         >
@@ -2163,6 +2184,7 @@ export function FilesTabView() {
         </aside>
         <div
           role="separator"
+          hidden={previewFullscreen}
           aria-orientation="vertical"
           onMouseDown={handleFileBrowserResizeStart}
           className="relative z-10 w-[5px] shrink-0 cursor-col-resize bg-[var(--color-background)] transition-colors duration-100 hover:bg-[var(--color-accent)]/15 active:bg-[var(--color-accent)]/25"
@@ -2179,6 +2201,7 @@ export function FilesTabView() {
     <div className="relative flex h-full min-h-0">
       {isFileBrowserResizing ? <div className="absolute inset-0 z-20 cursor-col-resize" /> : null}
       <aside
+        hidden={previewFullscreen}
         className="shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] overflow-y-auto flex flex-col"
         style={{ width: fileBrowserWidth }}
       >
@@ -2207,6 +2230,7 @@ export function FilesTabView() {
       </aside>
       <div
         role="separator"
+        hidden={previewFullscreen}
         aria-orientation="vertical"
         onMouseDown={handleFileBrowserResizeStart}
         className="relative z-10 w-[5px] shrink-0 cursor-col-resize bg-[var(--color-background)] transition-colors duration-100 hover:bg-[var(--color-accent)]/15 active:bg-[var(--color-accent)]/25"
@@ -2214,7 +2238,10 @@ export function FilesTabView() {
       />
       <div className="flex-1 min-w-0 h-full bg-[var(--color-background-secondary)] flex flex-col min-h-0">
         {showPreviewHeaderAction ? (
-          <div className="flex h-[36px] shrink-0 items-center justify-end border-b border-[var(--color-border-muted)] bg-[var(--color-background)] px-[var(--space-4)]">
+          <div
+            hidden={previewFullscreen}
+            className="flex h-[36px] shrink-0 items-center justify-end border-b border-[var(--color-border-muted)] bg-[var(--color-background)] px-[var(--space-4)]"
+          >
             <button
               type="button"
               onClick={handleOpenPreviewTarget}
