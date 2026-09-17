@@ -134,6 +134,7 @@ export interface CodesignState {
       stage: GenerationStage;
       startedAt?: number;
       awaitingResponse?: boolean;
+      streamedAssistantText?: string;
     }
   >;
   isGenerating: boolean;

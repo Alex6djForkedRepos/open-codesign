@@ -46,9 +46,19 @@ const append = vi.fn(async (input: { designId: string; kind: string; payload: un
 }));
 const generate = vi.fn();
 
-function emit(type: AgentStreamEvent['type'], generationId: string): void {
+function emit(
+  type: AgentStreamEvent['type'],
+  generationId: string,
+  extra: Partial<AgentStreamEvent> = {},
+): void {
   if (!listener) throw new Error('Agent stream listener not registered');
-  listener({ type, generationId, designId: design.id, message: '400 unsupported reasoning' });
+  listener({
+    type,
+    generationId,
+    designId: design.id,
+    message: '400 unsupported reasoning',
+    ...extra,
+  });
 }
 
 beforeAll(async () => {
@@ -192,7 +202,9 @@ describe('agent stream / IPC completion ordering', () => {
 
   it('keeps a background response from replacing another design preview', async () => {
     generate.mockImplementationOnce(async ({ generationId }: { generationId: string }) => {
+      emit('turn_start', generationId);
       useCodesignStore.setState({ currentDesignId: 'other-design', previewSource: 'Other' });
+      emit('turn_end', generationId, { finalText: 'Ready' });
       emit('agent_end', generationId);
       return { artifacts: [{ content: '<main>Aurora</main>' }], message: 'Ready' };
     });
@@ -201,6 +213,7 @@ describe('agent stream / IPC completion ordering', () => {
     expect(useCodesignStore.getState().previewSourceByDesign[design.id]).toBe(
       '<main>Aurora</main>',
     );
+    expect(append.mock.calls.filter(([row]) => row.kind === 'assistant_text')).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1500);
   });
 });

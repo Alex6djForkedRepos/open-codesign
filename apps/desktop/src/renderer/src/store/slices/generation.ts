@@ -452,7 +452,14 @@ function applyGenerateSuccess(
   const agentRuntimeActive = get().chatMessages.some(
     (m) => m.designId === designId && m.kind === 'tool_call',
   );
-  if (!agentRuntimeActive && assistantMessage.trim().length > 0) {
+  // Background chat rows are intentionally absent from the active design's
+  // state, so dedupe against this run's stream rather than only visible rows.
+  const streamedAssistantText = stateBefore.generationByDesign[designId]?.streamedAssistantText;
+  if (
+    !agentRuntimeActive &&
+    assistantMessage.trim().length > 0 &&
+    streamedAssistantText !== assistantMessage.trim()
+  ) {
     void get().appendChatMessage({
       designId,
       kind: 'assistant_text',

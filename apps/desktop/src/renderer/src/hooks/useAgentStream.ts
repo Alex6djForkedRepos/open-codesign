@@ -137,6 +137,16 @@ export function useAgentStream(): void {
       const finalText = event.finalText ?? current?.textBuffer ?? '';
       const trimmed = finalText.trim();
       if (current && trimmed.length > 0 && trimmed !== current.lastPersistedText?.trim()) {
+        useCodesignStore.setState((state) => {
+          const run = state.generationByDesign[event.designId];
+          if (run?.generationId !== event.generationId) return {};
+          return {
+            generationByDesign: {
+              ...state.generationByDesign,
+              [event.designId]: { ...run, streamedAssistantText: trimmed },
+            },
+          };
+        });
         void appendChatMessage({
           designId: current.designId,
           kind: 'assistant_text',
