@@ -408,6 +408,7 @@ export function appendSessionComment(
     appliedInSnapshotId: null,
     ...(input.scope !== undefined ? { scope: input.scope } : {}),
     ...(input.parentOuterHTML !== undefined ? { parentOuterHTML: input.parentOuterHTML } : {}),
+    ...(input.sourcePath !== undefined ? { sourcePath: input.sourcePath } : {}),
   });
   appendCommentEvent(opts, input.designId, {
     schemaVersion: 1,

@@ -100,9 +100,14 @@ export function stablePreviewSourceKey(source: string): string {
     );
 }
 
-export type AllowedPreviewMessageType = 'ELEMENT_SELECTED' | 'IFRAME_ERROR' | 'ELEMENT_RECTS';
+export type AllowedPreviewMessageType =
+  | 'ELEMENT_SELECTED'
+  | 'ELEMENT_SELECTION_CLEARED'
+  | 'IFRAME_ERROR'
+  | 'ELEMENT_RECTS';
 
 export interface PreviewMessageHandlers {
+  onSelectionCleared?: () => void;
   onElementSelected: (msg: OverlayMessage) => void;
   onIframeError: (msg: IframeErrorMessage) => void;
   onElementRects: (msg: ElementRectsMessage) => void;
@@ -125,6 +130,9 @@ export function handlePreviewMessage(
   }
 
   switch (envelope.type) {
+    case 'ELEMENT_SELECTION_CLEARED':
+      handlers.onSelectionCleared?.();
+      return { status: 'handled', type: envelope.type };
     case 'ELEMENT_SELECTED':
       if (isOverlayMessage(data)) {
         handlers.onElementSelected(data);

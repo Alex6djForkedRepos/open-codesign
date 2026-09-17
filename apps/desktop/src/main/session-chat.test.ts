@@ -379,10 +379,16 @@ describe('session design brief storage', () => {
         outerHTML: '<section id="hero">Hello</section>',
         rect: { top: 1, left: 2, width: 3, height: 4 },
         text: 'Make it bolder',
+        sourcePath: 'screens/tablet.html',
       });
 
       expect(listSessionComments(opts, design.id)).toMatchObject([
-        { id: row.id, status: 'pending', text: 'Make it bolder' },
+        {
+          id: row.id,
+          status: 'pending',
+          text: 'Make it bolder',
+          sourcePath: 'screens/tablet.html',
+        },
       ]);
 
       expect(

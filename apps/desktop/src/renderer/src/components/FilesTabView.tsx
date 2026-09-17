@@ -26,6 +26,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -51,7 +52,6 @@ import {
   postClearPinToPreviewWindow,
   postModeToPreviewWindow,
   postPinSelectorToPreviewWindow,
-  scaleRectForZoom,
   stablePreviewSourceKey,
 } from '../preview/helpers';
 import {
@@ -981,7 +981,8 @@ interface WorkspaceFilePreviewProps {
 }
 
 interface WorkspaceFilePreviewMessageHandlerInput {
-  previewZoom: number;
+  onSelectionCleared?: (() => void) | undefined;
+  sourcePath?: string | undefined;
   comments?: CommentRow[] | undefined;
   currentSnapshotId?: string | null | undefined;
   selectCanvasElement: ReturnType<typeof useCodesignStore.getState>['selectCanvasElement'];
@@ -991,6 +992,7 @@ interface WorkspaceFilePreviewMessageHandlerInput {
 }
 
 export function findReusableWorkspaceFileCommentForSelector(input: {
+  sourcePath?: string | undefined;
   comments: CommentRow[];
   currentSnapshotId: string | null;
   selector: string;
@@ -1001,7 +1003,8 @@ export function findReusableWorkspaceFileCommentForSelector(input: {
     if (
       comment?.kind === 'edit' &&
       comment.status === 'pending' &&
-      comment.selector === input.selector
+      comment.selector === input.selector &&
+      comment.sourcePath === input.sourcePath
     ) {
       if (input.currentSnapshotId !== null && comment.snapshotId === input.currentSnapshotId) {
         return comment;
@@ -1013,7 +1016,8 @@ export function findReusableWorkspaceFileCommentForSelector(input: {
 }
 
 export function createWorkspaceFilePreviewMessageHandlers({
-  previewZoom,
+  onSelectionCleared,
+  sourcePath,
   comments = [],
   currentSnapshotId = null,
   selectCanvasElement,
@@ -1022,24 +1026,27 @@ export function createWorkspaceFilePreviewMessageHandlers({
   pushIframeError,
 }: WorkspaceFilePreviewMessageHandlerInput): PreviewMessageHandlers {
   return {
+    onSelectionCleared: () => onSelectionCleared?.(),
     onElementSelected: (msg) => {
-      const scaled = scaleRectForZoom(msg.rect, previewZoom);
       selectCanvasElement({
+        ...(sourcePath ? { sourcePath } : {}),
         selector: msg.selector,
         tag: msg.tag,
         outerHTML: msg.outerHTML,
-        rect: scaled,
+        rect: msg.rect,
       });
       const existingComment = findReusableWorkspaceFileCommentForSelector({
         comments,
         currentSnapshotId,
         selector: msg.selector,
+        sourcePath,
       });
       openCommentBubble({
+        ...(sourcePath ? { sourcePath } : {}),
         selector: msg.selector,
         tag: msg.tag,
         outerHTML: msg.outerHTML,
-        rect: scaled,
+        rect: msg.rect,
         ...(existingComment
           ? { existingCommentId: existingComment.id, initialText: existingComment.text }
           : {}),
@@ -1519,7 +1526,6 @@ export function WorkspaceFilePreview({
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
   const currentPreviewSource = useCodesignStore((s) => s.previewSource);
-  const previewZoom = useCodesignStore((s) => s.previewZoom);
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const pushIframeError = useCodesignStore((s) => s.pushIframeError);
   const selectCanvasElement = useCodesignStore((s) => s.selectCanvasElement);
@@ -1563,6 +1569,11 @@ export function WorkspaceFilePreview({
   );
   const [readError, setReadError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previousPreview = useRef<{
+    designId: string | null;
+    path: string;
+    srcDoc: string | null;
+  } | null>(null);
   const activePreviewSource = isPreviewSourceUsableForSelectedPath({
     selectedPath: path,
     previewSourcePath: previewSource?.path,
@@ -1577,14 +1588,19 @@ export function WorkspaceFilePreview({
       handlePreviewMessage(
         event.data,
         createWorkspaceFilePreviewMessageHandlers({
-          previewZoom,
+          onSelectionCleared: () => {
+            if (interactive) useCodesignStore.getState().clearCanvasElement();
+          },
+          sourcePath: activePreviewSource?.path,
           comments,
           currentSnapshotId,
           selectCanvasElement: (selection) => {
-            if (interactive) selectCanvasElement(selection);
+            if (interactive && useCodesignStore.getState().interactionMode === 'comment')
+              selectCanvasElement(selection);
           },
           openCommentBubble: (bubble) => {
-            if (interactive) openCommentBubble(bubble);
+            if (interactive && useCodesignStore.getState().interactionMode === 'comment')
+              openCommentBubble(bubble);
           },
           applyLiveRects: (entries) => {
             if (interactive) applyLiveRects(entries);
@@ -1598,7 +1614,7 @@ export function WorkspaceFilePreview({
     return () => window.removeEventListener('message', onMessage);
   }, [
     pushIframeError,
-    previewZoom,
+    activePreviewSource?.path,
     comments,
     currentSnapshotId,
     selectCanvasElement,
@@ -1617,7 +1633,11 @@ export function WorkspaceFilePreview({
 
   useEffect(() => {
     if (!interactive) return;
-    if (commentBubble && interactionMode === 'comment') {
+    if (
+      commentBubble &&
+      commentBubble.sourcePath === activePreviewSource?.path &&
+      interactionMode === 'comment'
+    ) {
       postPinSelectorToPreviewWindow(
         iframeRef.current?.contentWindow,
         commentBubble.selector,
@@ -1626,7 +1646,7 @@ export function WorkspaceFilePreview({
       return;
     }
     postClearPinToPreviewWindow(iframeRef.current?.contentWindow, pushIframeError);
-  }, [commentBubble, interactionMode, interactive, pushIframeError]);
+  }, [commentBubble, activePreviewSource?.path, interactionMode, interactive, pushIframeError]);
 
   useEffect(() => {
     // Re-read when the file watcher reports changed metadata for either the
@@ -1742,6 +1762,26 @@ export function WorkspaceFilePreview({
     workspaceDevServerRequired,
   ]);
 
+  // A WindowProxy survives srcdoc navigation. Discard anchors before the new
+  // document can reuse a selector for a different element.
+  useLayoutEffect(() => {
+    if (!interactive) return;
+    const previous = previousPreview.current;
+    previousPreview.current = { designId: currentDesignId, path, srcDoc };
+    const state = useCodesignStore.getState();
+    const anchor = state.commentBubble;
+    const openingSavedComment =
+      (!previous ||
+        previous.path !== path ||
+        previous.designId !== currentDesignId ||
+        previous.srcDoc === null) &&
+      anchor?.sourcePath === path &&
+      state.comments.some(
+        (c) => c.id === anchor.existingCommentId && c.designId === currentDesignId,
+      );
+    if (!openingSavedComment) state.clearCanvasElement();
+  }, [currentDesignId, path, srcDoc, interactive]);
+
   if (nativePreview) {
     const url = workspaceUrlForFile({ designId: currentDesignId, filePath: path });
     if (url) return <NativeFilePreview kind={previewKind} path={path} url={url} />;
@@ -1783,6 +1823,7 @@ export function WorkspaceFilePreview({
   return (
     <>
       <iframe
+        key={srcDoc}
         ref={iframeRef}
         title={`design-preview-${path}`}
         sandbox="allow-scripts"
@@ -1790,6 +1831,13 @@ export function WorkspaceFilePreview({
         onLoad={() => {
           const win = iframeRef.current?.contentWindow;
           postModeToPreviewWindow(win, interactive ? interactionMode : 'default', pushIframeError);
+          if (
+            interactive &&
+            commentBubble &&
+            commentBubble.sourcePath === activePreviewSource?.path
+          ) {
+            postPinSelectorToPreviewWindow(win, commentBubble.selector, pushIframeError);
+          }
         }}
         className="w-full h-full bg-white border-0 block"
       />

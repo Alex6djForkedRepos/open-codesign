@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { OVERLAY_SCRIPT } from './overlay';
+import { isElementRectsMessage, isOverlayMessage, OVERLAY_SCRIPT } from './overlay';
 
 interface FakeWindow {
   addEventListener: (type: string, fn: unknown, capture?: boolean) => void;
@@ -84,6 +84,8 @@ describe('OVERLAY_SCRIPT reattach loop warning throttle', () => {
 // ---------------------------------------------------------------------------
 
 interface ListenerHarness {
+  body: object;
+  selectorMatches: Map<string, unknown[]>;
   documentListeners: Map<string, (e: unknown) => void>;
   windowListeners: Map<string, (e: unknown) => void>;
   parent: object;
@@ -91,19 +93,23 @@ interface ListenerHarness {
 }
 
 function runOverlayWithHarness(): ListenerHarness {
+  const body = {};
+  const selectorMatches = new Map<string, unknown[]>();
   const documentListeners = new Map<string, (e: unknown) => void>();
   const windowListeners = new Map<string, (e: unknown) => void>();
   const postedToParent: unknown[] = [];
   const parent = { postMessage: (msg: unknown) => postedToParent.push(msg) };
 
   const fakeDocument = {
-    body: {},
+    body,
+    querySelectorAll: (selector: string) => selectorMatches.get(selector) ?? [],
     addEventListener: (type: string, fn: (e: unknown) => void) => {
       documentListeners.set(type, fn);
     },
     removeEventListener: () => {},
   };
   const fakeWindow = {
+    CSS: { escape: (value: string) => value.replaceAll(':', '\\:') },
     addEventListener: (type: string, fn: (e: unknown) => void) => {
       windowListeners.set(type, fn);
     },
@@ -118,8 +124,60 @@ function runOverlayWithHarness(): ListenerHarness {
     `with (window) { ${OVERLAY_SCRIPT} }`,
   );
   sandbox(fakeWindow, fakeDocument, { warn: () => {} }, fakeSetInterval);
-  return { documentListeners, windowListeners, parent, postedToParent };
+  return { body, selectorMatches, documentListeners, windowListeners, parent, postedToParent };
 }
+
+describe('OVERLAY_SCRIPT stable clicked targets', () => {
+  function select(h: ListenerHarness, target: object) {
+    h.windowListeners.get('message')?.({
+      source: h.parent,
+      data: { __codesign: true, type: 'SET_MODE', mode: 'comment' },
+    });
+    h.documentListeners.get('click')?.({
+      preventDefault: () => {},
+      stopPropagation: () => {},
+      target,
+    });
+    return h.postedToParent.find(
+      (message) => (message as { type: string }).type === 'ELEMENT_SELECTED',
+    );
+  }
+  const element = (parent: object) => ({
+    nodeType: 1,
+    tagName: 'BUTTON',
+    id: 'repeat',
+    parentElement: parent,
+    previousElementSibling: null as object | null,
+    style: { outline: '3px dashed green' },
+    outerHTML: '<button id="repeat">Second</button>',
+    getBoundingClientRect: () => ({ top: 10, left: 20, width: 100, height: 40 }),
+  });
+  it('falls back to the exact body path when two elements share an ID', () => {
+    const h = runOverlayWithHarness();
+    const first = element(h.body);
+    const second = { ...element(h.body), previousElementSibling: first };
+    h.selectorMatches.set('#repeat', [first, second]);
+    expect(select(h, second)).toMatchObject({ selector: '/button[2]' });
+  });
+  it('uses an escaped ID only when it uniquely identifies the clicked element', () => {
+    const h = runOverlayWithHarness();
+    const target = { ...element(h.body), id: 'colon:id' };
+    h.selectorMatches.set('#colon\\:id', [target]);
+    expect(select(h, target)).toMatchObject({ selector: '#colon\\:id' });
+  });
+  it('restores a pre-existing outline after hover and pin without scrolling a clicked target', () => {
+    const h = runOverlayWithHarness();
+    const scrollIntoView = vi.fn();
+    const target = { ...element(h.body), scrollIntoView };
+    select(h, target);
+    h.windowListeners.get('message')?.({
+      source: h.parent,
+      data: { __codesign: true, type: 'CLEAR_PIN' },
+    });
+    expect(target.style.outline).toBe('3px dashed green');
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+});
 
 describe('OVERLAY_SCRIPT SET_MODE source validation', () => {
   it('drops SET_MODE messages whose source is not window.parent (forged)', () => {
@@ -203,7 +261,7 @@ interface RectHarness {
   parent: object;
   postedToParent: Array<Record<string, unknown>>;
   runRaf: () => void;
-  registerElement: (selector: string, rect: DOMRect) => void;
+  registerElement: (selector: string, rect: DOMRect, visible?: boolean) => void;
   registerBodyPath: (selector: string, rect: DOMRect) => void;
 }
 
@@ -213,6 +271,7 @@ interface FakeElement {
   getBoundingClientRect: () => DOMRect;
   scrollIntoView: () => void;
   style: { outline?: string };
+  getClientRects?: () => DOMRect[];
 }
 
 function runOverlayForRects(): RectHarness {
@@ -224,6 +283,7 @@ function runOverlayForRects(): RectHarness {
     string,
     {
       getBoundingClientRect: () => DOMRect;
+      getClientRects?: () => DOMRect[];
       scrollIntoView: () => void;
       style: { outline?: string };
     }
@@ -277,11 +337,12 @@ function runOverlayForRects(): RectHarness {
       pendingRaf = null;
       if (fn) fn();
     },
-    registerElement: (selector, rect) => {
+    registerElement: (selector, rect, visible = true) => {
       elements.set(selector, {
         getBoundingClientRect: () => rect,
         scrollIntoView: () => {},
         style: {},
+        getClientRects: () => (visible ? [rect] : []),
       });
     },
     registerBodyPath: (selector, rect) => {
@@ -295,7 +356,7 @@ function runOverlayForRects(): RectHarness {
         let seen = 0;
         let next: FakeElement | undefined;
         for (const child of current.children) {
-          if (child.tagName === tag) {
+          if (child.tagName.toUpperCase() === tag) {
             seen += 1;
             if (seen === index) {
               next = child;
@@ -305,6 +366,7 @@ function runOverlayForRects(): RectHarness {
         }
         while (!next) {
           const created = makeElement(tag);
+          if (tag === 'SVG' || tag === 'PATH') created.tagName = tag.toLowerCase();
           current.children.push(created);
           seen += 1;
           if (seen === index) next = created;
@@ -330,7 +392,59 @@ function makeRect(top: number, left: number, width: number, height: number): DOM
   } as DOMRect;
 }
 
+describe('selection payload validation', () => {
+  const message = {
+    __codesign: true,
+    type: 'ELEMENT_SELECTED',
+    selector: '#target',
+    tag: 'button',
+    outerHTML: '<button/>',
+    rect: { top: 1, left: 2, width: 3, height: 4 },
+  };
+  it('requires actual element metadata, not just an envelope', () => {
+    expect(isOverlayMessage({ __codesign: true, type: 'ELEMENT_SELECTED' })).toBe(false);
+    expect(isOverlayMessage(message)).toBe(true);
+  });
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])('rejects invalid sizes %s', (width) => {
+    const rect = { ...message.rect, width };
+    expect(isOverlayMessage({ ...message, rect })).toBe(false);
+    expect(
+      isElementRectsMessage({
+        __codesign: true,
+        type: 'ELEMENT_RECTS',
+        entries: [{ selector: '#target', rect }],
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('OVERLAY_SCRIPT rect broadcast', () => {
+  it('resolves nested SVG paths using the same case normalization as HTML ancestors', () => {
+    const h = runOverlayForRects();
+    h.registerBodyPath('/button[2]/svg[1]/path[1]', makeRect(30, 40, 20, 20));
+    h.windowListeners.get('message')?.({
+      source: h.parent,
+      data: { __codesign: true, type: 'WATCH_SELECTORS', selectors: ['/button[2]/svg[1]/path[1]'] },
+    });
+    h.runRaf();
+    expect(h.postedToParent.at(-1)?.['entries']).toEqual([
+      {
+        selector: '/button[2]/svg[1]/path[1]',
+        rect: { top: 30, left: 40, width: 20, height: 20 },
+      },
+    ]);
+  });
+
+  it('reports an empty measured set instead of retaining a hidden layer rectangle', () => {
+    const h = runOverlayForRects();
+    h.registerElement('#hidden', makeRect(0, 0, 0, 0), false);
+    h.windowListeners.get('message')?.({
+      source: h.parent,
+      data: { __codesign: true, type: 'WATCH_SELECTORS', selectors: ['#hidden'] },
+    });
+    h.runRaf();
+    expect(h.postedToParent.at(-1)).toMatchObject({ type: 'ELEMENT_RECTS', entries: [] });
+  });
   it('broadcasts ELEMENT_RECTS after WATCH_SELECTORS message', () => {
     const h = runOverlayForRects();
     h.registerElement('#a', makeRect(10, 20, 30, 40));
@@ -339,6 +453,7 @@ describe('OVERLAY_SCRIPT rect broadcast', () => {
       source: h.parent,
       data: { __codesign: true, type: 'WATCH_SELECTORS', selectors: ['#a'] },
     });
+
     h.runRaf();
 
     const rectMsg = h.postedToParent.find((m) => m['type'] === 'ELEMENT_RECTS');

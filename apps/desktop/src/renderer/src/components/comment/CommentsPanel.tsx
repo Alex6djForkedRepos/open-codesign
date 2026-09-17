@@ -12,14 +12,12 @@ export function CommentsPanel() {
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const comments = useCodesignStore((s) => s.comments);
   const currentSnapshotId = useCodesignStore((s) => s.currentSnapshotId);
-  const previewZoom = useCodesignStore((s) => s.previewZoom);
   const setInteractionMode = useCodesignStore((s) => s.setInteractionMode);
   const openCommentBubble = useCodesignStore((s) => s.openCommentBubble);
   const selectCanvasElement = useCodesignStore((s) => s.selectCanvasElement);
   const removeComment = useCodesignStore((s) => s.removeComment);
   const queueCommentForPrompt = useCodesignStore((s) => s.queueCommentForPrompt);
   const queuedCommentIds = useCodesignStore((s) => s.queuedCommentIds);
-  const liveRects = useCodesignStore((s) => s.liveRects);
   const isGenerating = useCodesignStore(
     (s) => s.isGenerating && s.generatingDesignId === s.currentDesignId,
   );
@@ -50,21 +48,16 @@ export function CommentsPanel() {
   });
 
   function handleOpen(c: CommentRow): void {
-    const scale = previewZoom / 100;
-    const rawRect = liveRects[c.selector] ?? c.rect;
-    const rect = {
-      top: rawRect.top * scale,
-      left: rawRect.left * scale,
-      width: rawRect.width * scale,
-      height: rawRect.height * scale,
-    };
+    const rect = c.rect;
     selectCanvasElement({
       selector: c.selector,
       tag: c.tag,
       outerHTML: c.outerHTML,
+      ...(c.sourcePath ? { sourcePath: c.sourcePath } : {}),
       rect,
     });
     openCommentBubble({
+      ...(c.sourcePath ? { sourcePath: c.sourcePath } : {}),
       selector: c.selector,
       tag: c.tag,
       outerHTML: c.outerHTML,

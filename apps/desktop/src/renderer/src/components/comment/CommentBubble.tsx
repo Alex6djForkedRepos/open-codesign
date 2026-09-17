@@ -1,9 +1,10 @@
 import { useT } from '@open-codesign/i18n';
 import { Check, Send, X } from 'lucide-react';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface CommentBubbleProps {
+  anchorFrame?: HTMLIFrameElement | null | undefined;
   selector: string;
   tag: string;
   outerHTML: string;
@@ -15,6 +16,21 @@ export interface CommentBubbleProps {
   onDraftChange?: (text: string) => void;
   onSaveAndClose: (text: string) => Promise<void> | void;
   onSaveAndSend: (text: string) => Promise<void> | void;
+}
+
+export function commentRectInWindow(
+  rect: CommentBubbleProps['rect'],
+  frame: { top: number; left: number; width: number; height: number },
+  viewport: { width: number; height: number },
+): CommentBubbleProps['rect'] {
+  const scaleX = viewport.width > 0 ? frame.width / viewport.width : 1;
+  const scaleY = viewport.height > 0 ? frame.height / viewport.height : 1;
+  return {
+    top: frame.top + rect.top * scaleY,
+    left: frame.left + rect.left * scaleX,
+    width: rect.width * scaleX,
+    height: rect.height * scaleY,
+  };
 }
 
 /** English fallback text for each quick action id — sent to the LLM. */
@@ -30,6 +46,7 @@ export const QUICK_ACTION_TEXT: Readonly<Record<string, string>> = {
 };
 
 export function CommentBubble({
+  anchorFrame,
   tag,
   outerHTML,
   rect,
@@ -45,6 +62,41 @@ export function CommentBubble({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleId = useId();
   const pending = pendingAction !== null;
+  const [position, setPosition] = useState({ top: 12, left: 12 });
+
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      const anchor = anchorFrame
+        ? commentRectInWindow(rect, anchorFrame.getBoundingClientRect(), {
+            width: anchorFrame.clientWidth,
+            height: anchorFrame.clientHeight,
+          })
+        : rect;
+      const bubble = rootRef.current?.getBoundingClientRect();
+      const next = {
+        top: Math.max(
+          12,
+          Math.min(anchor.top + anchor.height + 8, window.innerHeight - (bubble?.height ?? 0) - 12),
+        ),
+        left: Math.max(12, Math.min(anchor.left, window.innerWidth - (bubble?.width ?? 0) - 12)),
+      };
+      setPosition((previous) =>
+        previous.top === next.top && previous.left === next.left ? previous : next,
+      );
+    };
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePosition);
+    if (rootRef.current) observer?.observe(rootRef.current);
+    if (anchorFrame) observer?.observe(anchorFrame);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+      observer?.disconnect();
+    };
+  }, [anchorFrame, rect]);
 
   const runAction = useCallback(
     async (action: 'save' | 'send', handler: (text: string) => Promise<void> | void) => {
@@ -95,9 +147,6 @@ export function CommentBubble({
     return attrs ? `<${match[1]} ${attrs}…>` : `<${match[1]}>`;
   })();
 
-  const anchorTop = Math.max(rect.top + rect.height + 8, 12);
-  const anchorLeft = Math.max(rect.left, 12);
-
   return createPortal(
     <div
       ref={rootRef}
@@ -105,7 +154,7 @@ export function CommentBubble({
       aria-labelledby={titleId}
       aria-modal="false"
       className="fixed z-[60] w-[min(320px,88vw)] overflow-hidden rounded-2xl border border-[var(--color-border-muted)] bg-[var(--color-surface-elevated)] shadow-[0_8px_32px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)]"
-      style={{ top: `${anchorTop}px`, left: `${anchorLeft}px` }}
+      style={{ top: `${position.top}px`, left: `${position.left}px` }}
     >
       {/* Header — selected element + close */}
       <div className="flex items-center justify-between px-[var(--space-3)] py-[var(--space-2)] border-b border-[var(--color-border-muted)]">

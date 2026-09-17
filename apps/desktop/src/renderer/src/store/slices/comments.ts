@@ -48,11 +48,14 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
     },
 
     openCommentBubble(anchor) {
-      set({ commentBubble: anchor });
+      if (anchor.existingCommentId && anchor.sourcePath) {
+        get().openCanvasFileTab(anchor.sourcePath);
+      }
+      set({ commentBubble: anchor, interactionMode: 'comment' });
     },
 
     closeCommentBubble() {
-      set({ commentBubble: null });
+      set({ commentBubble: null, selectedElement: null });
     },
 
     queueCommentForPrompt(id) {
@@ -69,14 +72,7 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
     },
 
     applyLiveRects(entries) {
-      if (entries.length === 0) return;
-      set((s) => {
-        const next = { ...s.liveRects };
-        for (const { selector, rect } of entries) {
-          next[selector] = rect;
-        }
-        return { liveRects: next };
-      });
+      set({ liveRects: Object.fromEntries(entries.map(({ selector, rect }) => [selector, rect])) });
     },
 
     clearLiveRects() {
@@ -93,6 +89,7 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
       if (!snapshotId) {
         try {
           const snaps = await window.codesign.snapshots.list(designId);
+          if (get().currentDesignId !== designId) return null;
           snapshotId = snaps[0]?.id ?? null;
           if (snapshotId) set({ currentSnapshotId: snapshotId });
         } catch (err) {
@@ -106,6 +103,7 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
         });
         return null;
       }
+      if (get().currentDesignId !== designId) return null;
       try {
         const row = await window.codesign.comments.add({
           designId,
@@ -118,6 +116,7 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
           text: input.text,
           ...(input.scope ? { scope: input.scope } : {}),
           ...(input.parentOuterHTML ? { parentOuterHTML: input.parentOuterHTML } : {}),
+          ...(input.sourcePath ? { sourcePath: input.sourcePath } : {}),
         });
         if (get().currentDesignId === designId) {
           if (!row) {
@@ -180,7 +179,8 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
         if (
           comment?.kind === 'edit' &&
           comment.status === 'pending' &&
-          comment.selector === input.selector
+          comment.selector === input.selector &&
+          comment.sourcePath === input.sourcePath
         ) {
           if (snapshotId !== null && comment.snapshotId === snapshotId) {
             existingForSelector = comment;
@@ -202,6 +202,7 @@ export function makeCommentsSlice(set: SetState, get: GetState): CommentsSliceAc
       };
       if (input.scope) payload.scope = input.scope;
       if (input.parentOuterHTML) payload.parentOuterHTML = input.parentOuterHTML;
+      if (input.sourcePath) payload.sourcePath = input.sourcePath;
       return get().addComment(payload);
     },
 

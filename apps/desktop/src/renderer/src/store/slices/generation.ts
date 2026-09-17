@@ -301,6 +301,7 @@ function buildPromptRequest(
  * this mirrors that "pending changes accumulator" shape.
  */
 export interface PendingEditEnrichment {
+  sourcePath?: string | undefined;
   selector: string;
   tag: string;
   outerHTML: string;
@@ -320,6 +321,7 @@ function formatPendingEditTarget(
 ): string {
   const lines = [
     `Edit ${index + 1} target`,
+    `Source file: ${edit.sourcePath ?? 'Unknown; inspect workspace sources before editing'}`,
     `Target: <${edit.tag}> at ${edit.selector}`,
     `Current HTML:\n${truncate(edit.outerHTML)}`,
   ];
@@ -345,10 +347,10 @@ export function buildEnrichedPrompt(
   const truncate = (s: string) => (s.length > MAX_HTML ? `${s.slice(0, MAX_HTML)}…` : s);
 
   const lines: string[] = [
-    `## REQUIRED EDITS — you MUST apply every edit below to ${DEFAULT_SOURCE_ENTRY}`,
+    '## REQUIRED EDITS — apply every edit below to its identified source file',
     '',
     'Each edit targets a specific element identified by its selector and outerHTML.',
-    'Use `str_replace_based_edit_tool` with `command: "view"` and `command: "str_replace"` to find and modify the element. Do NOT skip any edit.',
+    'Use `read` and `edit` to inspect the identified source and modify the intended element. DOM selectors are not source-code locations; resolve rendered markup against the source before editing and preserve unrelated siblings. If the source imports the component, follow that import. Do NOT assume every edit belongs in App.jsx.',
     '',
   ];
 
@@ -1027,6 +1029,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
             selector: selection.selector,
             tag: selection.tag,
             outerHTML: selection.outerHTML,
+            ...(selection.sourcePath ? { sourcePath: selection.sourcePath } : {}),
             text: trimmed,
           },
         ],

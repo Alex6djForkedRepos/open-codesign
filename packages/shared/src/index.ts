@@ -164,6 +164,7 @@ export type ElementSelectionRect = z.infer<typeof ElementSelectionRect>;
 
 export const SelectedElement = z
   .object({
+    sourcePath: z.string().min(1).optional(),
     selector: z.string().min(1),
     tag: z.string().min(1),
     outerHTML: z.string(),

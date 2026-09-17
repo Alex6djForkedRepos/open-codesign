@@ -6,6 +6,7 @@ import {
   type DragEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -23,7 +24,6 @@ import {
   postClearPinToPreviewWindow,
   postModeToPreviewWindow,
   postPinSelectorToPreviewWindow,
-  scaleRectForZoom,
   stablePreviewSourceKey,
 } from '../preview/helpers';
 import { inferPreviewSourcePath } from '../preview/workspace-source';
@@ -140,7 +140,8 @@ export function findReusablePendingCommentForSelector(input: {
     if (
       comment?.kind === 'edit' &&
       comment.status === 'pending' &&
-      comment.selector === input.selector
+      comment.selector === input.selector &&
+      comment.sourcePath === undefined
     ) {
       if (input.currentSnapshotId !== null && comment.snapshotId === input.currentSnapshotId) {
         return comment;
@@ -226,6 +227,13 @@ function PreviewSlot({
     () => buildPreviewDocument(source, { path: inferPreviewSourcePath(source) }),
     [srcDocStableKey],
   );
+  const previousDocument = useRef(srcDoc);
+  useLayoutEffect(() => {
+    if (active && previousDocument.current !== srcDoc) {
+      useCodesignStore.getState().clearCanvasElement();
+    }
+    previousDocument.current = srcDoc;
+  }, [active, srcDoc]);
 
   const setRef = useCallback(
     (el: HTMLIFrameElement | null) => registerIframe(designId, el),
@@ -235,6 +243,7 @@ function PreviewSlot({
   const isMobile = viewport === 'mobile';
   const rawIframe = (
     <iframe
+      key={srcDoc}
       ref={setRef}
       title={`design-preview-${designId}`}
       sandbox="allow-scripts"
@@ -412,6 +421,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     } else {
       iframesByDesign.current.delete(designId);
     }
+    if (designId === useCodesignStore.getState().currentDesignId) iframeRef.current = el;
   }, []);
 
   const handleIframeLoaded = useCallback(
@@ -425,6 +435,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   // current interaction mode. Background iframes keep their last mode — fine,
   // they're inert until reactivated.
   useEffect(() => {
+    void activeCanvasTab;
     if (currentDesignId === null) {
       iframeRef.current = null;
       return;
@@ -436,7 +447,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     }
     // New iframe / new design → liveRects from the old one are stale.
     clearLiveRects();
-  }, [currentDesignId, interactionMode, pushIframeError, clearLiveRects]);
+  }, [currentDesignId, interactionMode, pushIframeError, clearLiveRects, activeCanvasTab]);
 
   // Tell the sandbox which selectors to track. The sandbox re-measures each
   // on scroll/resize and broadcasts ELEMENT_RECTS; we merge into liveRects.
@@ -472,13 +483,14 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
       if (!isTrustedPreviewMessageSource(event.source, iframeRef.current?.contentWindow)) return;
 
       const outcome = handlePreviewMessage(event.data, {
+        onSelectionCleared: () => useCodesignStore.getState().clearCanvasElement(),
         onElementSelected: (msg) => {
-          const scaled = scaleRectForZoom(msg.rect, previewZoom);
+          if (useCodesignStore.getState().interactionMode !== 'comment') return;
           selectCanvasElement({
             selector: msg.selector,
             tag: msg.tag,
             outerHTML: msg.outerHTML,
-            rect: scaled,
+            rect: msg.rect,
           });
           const existingComment = findReusablePendingCommentForSelector({
             comments,
@@ -489,7 +501,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
             selector: msg.selector,
             tag: msg.tag,
             outerHTML: msg.outerHTML,
-            rect: scaled,
+            rect: msg.rect,
             ...(existingComment
               ? { existingCommentId: existingComment.id, initialText: existingComment.text }
               : {}),
@@ -516,7 +528,6 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     pushIframeError,
     selectCanvasElement,
     openCommentBubble,
-    previewZoom,
     comments,
     currentSnapshotId,
     applyLiveRects,
@@ -564,7 +575,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
 
   const showCommentUi = interactionMode === 'comment';
   const snapshotComments = currentSnapshotId
-    ? comments.filter((c) => c.snapshotId === currentSnapshotId)
+    ? comments.filter((c) => c.snapshotId === currentSnapshotId && c.sourcePath === undefined)
     : [];
   const pinOverlay = (
     <PinOverlay
@@ -577,7 +588,8 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
           selector: c.selector,
           tag: c.tag,
           outerHTML: c.outerHTML,
-          rect: scaleRectForZoom(live, previewZoom),
+          rect: live,
+          ...(c.sourcePath ? { sourcePath: c.sourcePath } : {}),
           existingCommentId: c.id,
           initialText: c.text,
         });
@@ -701,14 +713,15 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
         {commentBubble && interactionMode === 'comment' && view === 'workspace'
           ? (() => {
               const liveForBubble = liveRects[commentBubble.selector];
-              const scaled = liveForBubble
-                ? scaleRectForZoom(liveForBubble, previewZoom)
-                : commentBubble.rect;
+              const bubbleFrame =
+                iframeRef.current ?? canvasHostRef.current?.querySelector('iframe') ?? null;
               const existingId = commentBubble.existingCommentId;
               // Keying by comment id (when editing) rather than selector alone
               // means two comments on the same element each get their own draft
               // state and don't stomp each other on reopen.
-              const bubbleKey = existingId ? `edit:${existingId}` : `new:${commentBubble.selector}`;
+              const bubbleKey = existingId
+                ? `edit:${existingId}`
+                : `new:${currentDesignId}:${commentBubble.sourcePath ?? ''}:${commentBubble.selector}`;
               // Draft precedence: prior unsent draft for this anchor > DB text
               // on a reopened chip > empty. This preserves mid-typing context
               // when the user clicks another chip and comes back.
@@ -736,7 +749,9 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
                   ...(commentBubble.parentOuterHTML
                     ? { parentOuterHTML: commentBubble.parentOuterHTML }
                     : {}),
+                  ...(commentBubble.sourcePath ? { sourcePath: commentBubble.sourcePath } : {}),
                 });
+                if (useCodesignStore.getState().currentDesignId !== currentDesignId) return null;
                 if (!row) return null;
                 bubbleDraftsRef.current.delete(bubbleKey);
                 return { row };
@@ -744,10 +759,11 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
               return (
                 <CommentBubble
                   key={bubbleKey}
+                  anchorFrame={bubbleFrame}
                   selector={commentBubble.selector}
                   tag={commentBubble.tag}
                   outerHTML={commentBubble.outerHTML}
-                  rect={scaled}
+                  rect={liveForBubble ?? commentBubble.rect}
                   {...(initialText !== undefined ? { initialText } : {})}
                   onDraftChange={(text) => {
                     if (text.length === 0) bubbleDraftsRef.current.delete(bubbleKey);

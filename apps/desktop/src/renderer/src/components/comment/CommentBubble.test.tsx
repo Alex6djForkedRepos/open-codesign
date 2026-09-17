@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { CommentBubble, type CommentBubbleProps, QUICK_ACTION_TEXT } from './CommentBubble';
+import {
+  CommentBubble,
+  type CommentBubbleProps,
+  commentRectInWindow,
+  QUICK_ACTION_TEXT,
+} from './CommentBubble';
+
+describe('comment bubble iframe coordinates', () => {
+  it.each([0.5, 1, 1.5])('maps iframe-local rectangles to the portal at scale %s', (scale) => {
+    expect(
+      commentRectInWindow(
+        { top: 80, left: 120, width: 200, height: 40 },
+        { top: 170, left: 320, width: 800 * scale, height: 600 * scale },
+        { width: 800, height: 600 },
+      ),
+    ).toEqual({
+      top: 170 + 80 * scale,
+      left: 320 + 120 * scale,
+      width: 200 * scale,
+      height: 40 * scale,
+    });
+  });
+});
 
 describe('CommentBubble module', () => {
   it('exports the component', () => {

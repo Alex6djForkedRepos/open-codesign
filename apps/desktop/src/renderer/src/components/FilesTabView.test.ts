@@ -28,6 +28,17 @@ import {
 } from './FilesTabView';
 
 describe('FilesTabView preview helpers', () => {
+  it('does not reuse a comment with an identical selector in a different source file', () => {
+    const comment = commentRow();
+    expect(
+      findReusableWorkspaceFileCommentForSelector({
+        comments: [{ ...comment, sourcePath: 'screens/mobile.html' }],
+        selector: comment.selector,
+        currentSnapshotId: comment.snapshotId,
+        sourcePath: 'screens/tablet.html',
+      }),
+    ).toBeNull();
+  });
   const commentRow = (overrides: Partial<CommentRow> = {}): CommentRow => ({
     schemaVersion: 1,
     id: overrides.id ?? 'comment-1',
@@ -179,7 +190,7 @@ describe('FilesTabView preview helpers', () => {
     const applyLiveRects = vi.fn();
     const pushIframeError = vi.fn();
     const handlers = createWorkspaceFilePreviewMessageHandlers({
-      previewZoom: 50,
+      sourcePath: 'screens/tablet.html',
       selectCanvasElement,
       openCommentBubble,
       applyLiveRects,
@@ -197,17 +208,19 @@ describe('FilesTabView preview helpers', () => {
     });
 
     expect(selectCanvasElement).toHaveBeenCalledWith({
+      sourcePath: 'screens/tablet.html',
       selector: '#hero',
       tag: 'section',
       outerHTML: '<section id="hero">Hello</section>',
-      rect: { top: 10, left: 20, width: 100, height: 50 },
+      rect: { top: 20, left: 40, width: 200, height: 100 },
     });
     expect(openCommentBubble).toHaveBeenCalledWith({
+      sourcePath: 'screens/tablet.html',
       selector: '#hero',
       tag: 'section',
       outerHTML: '<section id="hero">Hello</section>',
       parentOuterHTML: '<main><section id="hero">Hello</section></main>',
-      rect: { top: 10, left: 20, width: 100, height: 50 },
+      rect: { top: 20, left: 40, width: 200, height: 100 },
     });
   });
 
@@ -218,7 +231,6 @@ describe('FilesTabView preview helpers', () => {
     const applyLiveRects = vi.fn();
     const pushIframeError = vi.fn();
     const handlers = createWorkspaceFilePreviewMessageHandlers({
-      previewZoom: 100,
       comments: [existing],
       currentSnapshotId: existing.snapshotId,
       selectCanvasElement,

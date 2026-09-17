@@ -107,6 +107,7 @@ export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
 export type PreviewZoomMode = 'manual' | 'fit';
 
 export interface CommentBubbleAnchor {
+  sourcePath?: string | undefined;
   selector: string;
   tag: string;
   outerHTML: string;
@@ -423,6 +424,7 @@ export interface CodesignState {
     text: string;
     scope?: CommentScope;
     parentOuterHTML?: string;
+    sourcePath?: string;
   }) => Promise<CommentRow | null>;
   updateComment: (id: string, patch: { text?: string }) => Promise<CommentRow | null>;
   /** Single entry point used by CommentBubble. If `existingCommentId` is set,
@@ -430,6 +432,7 @@ export interface CodesignState {
    *  (creating a new one). Returns the resulting row on success, null on
    *  failure — callers must check before closing UI so drafts aren't lost. */
   submitComment: (input: {
+    sourcePath?: string;
     existingCommentId?: string;
     kind: CommentKind;
     selector: string;
@@ -723,7 +726,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   },
 
   clearCanvasElement() {
-    set({ selectedElement: null });
+    set({ selectedElement: null, commentBubble: null, liveRects: {} });
   },
 
   setPreviewZoom(zoom) {
@@ -799,25 +802,48 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   openCanvasFileTab(path: string) {
     set((s) => {
       const result = openFileTab(s.canvasTabs, path);
-      return { canvasTabs: result.tabs, activeCanvasTab: result.index };
+      return {
+        canvasTabs: result.tabs,
+        activeCanvasTab: result.index,
+        ...(result.index !== s.activeCanvasTab
+          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          : {}),
+      };
     });
   },
 
   closeCanvasTab(index: number) {
     set((s) => {
       const result = closeTabAt(s.canvasTabs, s.activeCanvasTab, index);
-      return { canvasTabs: result.tabs, activeCanvasTab: result.activeIndex };
+      return {
+        canvasTabs: result.tabs,
+        activeCanvasTab: result.activeIndex,
+        ...(index === s.activeCanvasTab
+          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          : {}),
+      };
     });
   },
 
   setActiveCanvasTab(index: number) {
     set((s) => {
       if (index < 0 || index >= s.canvasTabs.length) return {};
-      return { activeCanvasTab: index };
+      return {
+        activeCanvasTab: index,
+        ...(index !== s.activeCanvasTab
+          ? { selectedElement: null, commentBubble: null, liveRects: {} }
+          : {}),
+      };
     });
   },
 
   resetCanvasTabs() {
-    set({ canvasTabs: DEFAULT_CANVAS_TABS, activeCanvasTab: 0 });
+    set({
+      canvasTabs: DEFAULT_CANVAS_TABS,
+      activeCanvasTab: 0,
+      selectedElement: null,
+      commentBubble: null,
+      liveRects: {},
+    });
   },
 }));

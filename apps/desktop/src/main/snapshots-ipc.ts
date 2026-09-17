@@ -1068,6 +1068,12 @@ function parseCommentCreateInput(raw: unknown): CommentCreateInput {
   if (r['parentOuterHTML'] !== undefined && typeof r['parentOuterHTML'] !== 'string') {
     throw new CodesignError('parentOuterHTML must be a string when provided', 'IPC_BAD_INPUT');
   }
+  if (
+    r['sourcePath'] !== undefined &&
+    (typeof r['sourcePath'] !== 'string' || r['sourcePath'].length === 0)
+  ) {
+    throw new CodesignError('sourcePath must be a non-empty string when provided', 'IPC_BAD_INPUT');
+  }
   return {
     designId: r['designId'],
     snapshotId: r['snapshotId'],
@@ -1079,6 +1085,7 @@ function parseCommentCreateInput(raw: unknown): CommentCreateInput {
     text: r['text'],
     ...(scope === 'element' || scope === 'global' ? { scope } : {}),
     ...(typeof r['parentOuterHTML'] === 'string' ? { parentOuterHTML: r['parentOuterHTML'] } : {}),
+    ...(typeof r['sourcePath'] === 'string' ? { sourcePath: r['sourcePath'] } : {}),
   };
 }
 
