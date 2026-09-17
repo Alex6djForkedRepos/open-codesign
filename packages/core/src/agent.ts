@@ -523,10 +523,10 @@ function agenticToolGuidance(input: {
     `- For visual/web deliverables, write the primary design source to \`${DEFAULT_SOURCE_ENTRY}\` with \`str_replace_based_edit_tool\`.`,
     '- Multi-deliverable packages are allowed when useful: preview source, DESIGN.md, Markdown handoff docs, data files, and local assets can all belong to one design.',
     '- For document-first requests such as design briefs, content outlines, or handoff notes, create the requested `.md` file directly and skip `App.jsx` unless a visual preview is also useful.',
-    '- Prefer progressive generation when it is natural: write a coherent first pass, then add sections, data, interactions, and polish in focused edits before previewing.',
-    '- Fresh visual sequence: `set_title` -> optional `set_todos`/`skill` -> required `scaffold` when a matching starter/frame/shell/primitive exists -> `create App.jsx` with a coherent first pass -> focused edits if needed -> `preview(App.jsx)`.',
+    '- For substantial fresh apps, write a small runnable product frame early, then complete linked journeys and shared state, then polish in focused edits. Each checkpoint must remain valid, complete JSX.',
+    '- Fresh visual sequence: `set_title` -> optional `set_todos`/`skill` -> required `scaffold` when a matching starter/frame/shell/primitive exists -> `create App.jsx` with a coherent runnable frame -> optional frame preview -> focused feature and polish edits -> full-flow `preview(App.jsx)`.',
     '- Fresh document sequence: `set_title` -> optional `set_todos`/`skill` -> create the requested document file -> `done(path)` self-check.',
-    '- Do not call `preview` while a previewable artifact is still only a scaffold, loading state, skeleton, placeholder, or empty lower section. Preview should represent a coherent first pass unless the user explicitly asked for a loading-state design.',
+    '- An early coherent frame with real content may be previewed before every journey exists. Do not preview a raw copied scaffold, Loading/Generating placeholder, or broken JSX. An early frame check is not final verification: finish the requested flows and check them before done.',
     '- Existing-source sequence: optional `set_todos` -> `inspect_workspace` when available -> `view` the source -> `str_replace`/`insert`. Do not edit an existing source from memory, and do not rebuild unless the user explicitly asks.',
     '- If the design is still named `Untitled design` or `Untitled design N`, naming is not optional: call `set_title` before other work, even when a scaffold or reference source already exists.',
     '- Use `create` for new files; follow-up edits use `view`, `str_replace`, or `insert`.',
@@ -542,7 +542,7 @@ function agenticToolGuidance(input: {
     '',
     '- Keep `old_str` small and unique. Large replacements waste context and are fragile.',
     '- For existing files, call `view` in the same run before `str_replace` or `insert`; use the latest viewed text, not memory.',
-    '- A complete first `create` is acceptable when the target file is ready. Keep follow-up edits focused so they remain reliable.',
+    '- A small single-screen artifact may be complete in its first create. For substantial apps, do not delay the first runnable frame to assemble one huge file; use a few coherent checkpoints and focused follow-up edits.',
     '- Never view just to check whether an edit succeeded; the tool reports failures.',
   ].join('\n');
 }

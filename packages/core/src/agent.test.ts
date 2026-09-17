@@ -1789,8 +1789,8 @@ describe('generateViaAgent()', () => {
     const sys = agentCalls[0]?.options.initialState?.systemPrompt as string;
     expect(sys).toContain('str_replace_based_edit_tool');
     expect(sys).toContain('Use `create` for new files');
-    expect(sys).toContain('Prefer progressive generation');
-    expect(sys).toContain('coherent first pass');
+    expect(sys).toContain('write a small runnable product frame early');
+    expect(sys).toContain('optional frame preview');
     expect(sys).toContain('small renderable checkpoint early');
     expect(sys).toContain('An early coherent frame may be previewed before all journeys exist');
     expect(sys).toContain('a few meaningful, runnable checkpoints');
@@ -1805,6 +1805,8 @@ describe('generateViaAgent()', () => {
     expect(sys).not.toContain('text_editor.create(');
     expect(sys).not.toContain('view("index.html"');
     expect(sys).not.toContain('IOSDevice, IOSStatusBar');
+    expect(sys).not.toContain('focused edits before previewing');
+    expect(sys).not.toContain('still only a scaffold, loading state, skeleton');
   });
 
   it('exposes the current v0.2 toolset when host capabilities are present', async () => {
