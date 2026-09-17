@@ -45,6 +45,7 @@
     "previewTab": "预览",
     "filesTab": "文件",
     "filesTabEmpty": "还没有文件",
+    "filesTabEmptyHint": "在聊天中描述你的设计，添加本地参考文件，或选择已有工作区。文件和预览会显示在这里。",
     "openInTab": "在新标签打开",
     "previewHint": "缩略预览 · 双击文件名或点击「在新标签打开」可在独立标签查看",
     "documentPreview": {

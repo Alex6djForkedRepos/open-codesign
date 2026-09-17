@@ -555,11 +555,11 @@ function WorkspaceSection({ files }: { files: DesignFileEntry[] }) {
             <Globe2 className="h-3.5 w-3.5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-[var(--space-1)]">
+            <div className="flex min-w-0 flex-wrap items-center gap-[var(--space-1)]">
               <span className="text-[10px] font-medium uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)]">
                 {t('canvas.workspace.preview.label')}
               </span>
-              <span className="rounded-[var(--radius-pill)] border border-[var(--color-border-muted)] px-1.5 py-0.5 text-[9px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-secondary)]">
+              <span className="max-w-full break-words rounded-[var(--radius-pill)] border border-[var(--color-border-muted)] px-1.5 py-0.5 text-[9px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-secondary)]">
                 {previewConfigured
                   ? t('canvas.workspace.preview.status.saved')
                   : t('canvas.workspace.preview.status.auto')}
@@ -1871,6 +1871,26 @@ export function WorkspaceFilePreview({
   );
 }
 
+export function EmptyWorkspacePreview({ loading }: { loading: boolean }) {
+  const t = useT();
+  return (
+    <div className="flex h-full min-h-0 flex-col items-center justify-center gap-[var(--space-3)] overflow-y-auto px-[var(--space-6)] py-[var(--space-4)] text-center">
+      <FileCode2
+        className="shrink-0 size-[var(--space-8)] text-[var(--color-text-muted)]"
+        aria-hidden
+      />
+      <p className="m-0 text-[var(--text-base)] text-[var(--color-text-secondary)]">
+        {loading ? t('common.loading') : t('canvas.filesTabEmpty')}
+      </p>
+      {!loading ? (
+        <p className="m-0 max-w-prose text-[var(--text-sm)] leading-[var(--leading-body)] text-[var(--color-text-muted)]">
+          {t('canvas.filesTabEmptyHint')}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function FilesTabView({
   onFullscreenAvailable,
 }: {
@@ -1882,7 +1902,7 @@ export function FilesTabView({
   const openFileTab = useCodesignStore((s) => s.openCanvasFileTab);
   const currentPreviewSource = useCodesignStore((s) => s.previewSource);
   const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
-  const { files, tree: fileTree, loadDirectory } = useLazyDesignFileTree(currentDesignId);
+  const { files, tree: fileTree, loading, loadDirectory } = useLazyDesignFileTree(currentDesignId);
 
   const defaultPath = useMemo(() => defaultWorkspacePreviewPath(files), [files]);
 
@@ -2035,11 +2055,7 @@ export function FilesTabView({
         />
       );
     }
-    return (
-      <div className="flex h-full items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)]">
-        {t('canvas.filesTabEmpty')}
-      </div>
-    );
+    return <EmptyWorkspacePreview loading={loading} />;
   }
 
   useEffect(() => {
@@ -2170,27 +2186,11 @@ export function FilesTabView({
 
   if (files.length === 0 && fileTree.length === 0) {
     return (
-      <div className="relative flex h-full min-h-0">
-        {isFileBrowserResizing ? <div className="absolute inset-0 z-20 cursor-col-resize" /> : null}
-        <aside
-          hidden={previewFullscreen}
-          className="shrink-0 border-r border-[var(--color-border-muted)] bg-[var(--color-background)] overflow-y-auto flex flex-col"
-          style={{ width: fileBrowserWidth }}
-        >
+      <div className="codesign-empty-workspace flex h-full min-h-0 min-w-0 flex-col">
+        <div hidden={previewFullscreen} className="shrink-0 bg-[var(--color-background)]">
           <WorkspaceSection files={files} />
-          <div className="flex-1 flex items-center justify-center text-[var(--text-sm)] text-[var(--color-text-muted)] px-[var(--space-6)]">
-            {t('canvas.filesTabEmpty')}
-          </div>
-        </aside>
-        <div
-          role="separator"
-          hidden={previewFullscreen}
-          aria-orientation="vertical"
-          onMouseDown={handleFileBrowserResizeStart}
-          className="relative z-10 w-[5px] shrink-0 cursor-col-resize bg-[var(--color-background)] transition-colors duration-100 hover:bg-[var(--color-accent)]/15 active:bg-[var(--color-accent)]/25"
-          title="Resize files"
-        />
-        <div className="flex-1 min-w-0 h-full bg-[var(--color-background-secondary)]">
+        </div>
+        <div className="flex-1 min-h-0 min-w-0 bg-[var(--color-background-secondary)]">
           {renderPreviewPane()}
         </div>
       </div>

@@ -45,6 +45,7 @@
     "previewTab": "Vista previa",
     "filesTab": "Archivos",
     "filesTabEmpty": "Sin archivos aún",
+    "filesTabEmptyHint": "Describe tu diseño en el chat, adjunta referencias locales o elige un espacio de trabajo existente. Tus archivos y la vista previa aparecerán aquí.",
     "openInTab": "Abrir en pestaña",
     "previewHint": "Vista previa en miniatura · haz doble clic en el archivo o usa Abrir en pestaña para vista completa",
     "documentPreview": {

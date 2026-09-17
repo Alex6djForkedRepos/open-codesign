@@ -45,6 +45,7 @@
     "previewTab": "Preview",
     "filesTab": "Files",
     "filesTabEmpty": "No files yet",
+    "filesTabEmptyHint": "Describe your design in the chat, attach local references, or choose an existing workspace. Your files and preview will appear here.",
     "openInTab": "Open in tab",
     "previewHint": "Thumbnail preview · double-click the file or use Open in tab for full view",
     "documentPreview": {

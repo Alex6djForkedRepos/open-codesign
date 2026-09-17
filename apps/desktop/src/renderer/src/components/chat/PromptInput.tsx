@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -24,7 +25,7 @@ import {
 } from '../../lib/file-ingest';
 import { useCodesignStore } from '../../store';
 
-const MAX_TEXTAREA_ROWS = 6;
+const MAX_TEXTAREA_ROWS = 10;
 
 export interface PromptKeyInput {
   key: string;
@@ -85,13 +86,44 @@ export function formatElapsedSeconds(elapsedSec: number): string {
     : `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`;
 }
 
+export function getPromptHeightLimit(
+  rowHeight: number,
+  verticalPadding: number,
+  sidebarHeight: number,
+  otherComposerHeight: number,
+): number {
+  return Math.max(
+    rowHeight + verticalPadding,
+    Math.min(
+      rowHeight * MAX_TEXTAREA_ROWS + verticalPadding,
+      sidebarHeight * 0.65 - otherComposerHeight,
+    ),
+  );
+}
+
 function resizeTextarea(el: HTMLTextAreaElement): void {
   const rowHeight = getTextareaLineHeight(el);
   const verticalPadding = getTextareaVerticalPadding(el);
-  const maxHeight = rowHeight * MAX_TEXTAREA_ROWS + verticalPadding;
+  const sidebar = el.closest('aside');
+  const footer = el.closest('.codesign-sidebar-composer');
+  const maxHeight =
+    sidebar && footer
+      ? getPromptHeightLimit(
+          rowHeight,
+          verticalPadding,
+          sidebar.clientHeight,
+          footer.getBoundingClientRect().height - el.getBoundingClientRect().height,
+        )
+      : rowHeight * MAX_TEXTAREA_ROWS + verticalPadding;
+  const scrollTop = el.scrollTop;
+  const followEnd =
+    document.activeElement === el &&
+    el.selectionEnd === el.value.length &&
+    el.scrollHeight - el.clientHeight - scrollTop <= rowHeight;
   el.style.height = 'auto';
   el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  el.scrollTop = followEnd ? el.scrollHeight : scrollTop;
 }
 
 export interface PromptInputProps {
@@ -100,7 +132,7 @@ export interface PromptInputProps {
   isGenerating: boolean;
   /** Optional content rendered above the textarea, inside the composer card. */
   contextSummary?: ReactNode;
-  /** Optional element rendered inside the textarea container, bottom-left. */
+  /** Optional action rendered below the text, alongside send/stop. */
   leadingAction?: ReactNode;
   onImportFiles?: (input: {
     source: WorkspaceImportSource;
@@ -119,7 +151,7 @@ export interface PromptInputHandle {
  * chat pane can be rewritten without disturbing the send-path keybindings.
  *
  * Keybindings:
- *   Enter           — submit (unless Shift/Meta/Ctrl held)
+ *   Enter           — submit (unless Shift held or composing)
  *   Meta/Ctrl+Enter — submit (power-user muscle memory)
  *   Shift+Enter     — newline
  */
@@ -176,9 +208,24 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
 
   const elapsedText = formatElapsedSeconds(elapsedSec);
 
-  useEffect(() => {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: These rendered contents change the textarea's available space, unlike elapsed timer ticks.
+  useLayoutEffect(() => {
     if (taRef.current) resizeTextarea(taRef.current);
-  });
+  }, [prompt, contextSummary, isGenerating]);
+
+  useEffect(() => {
+    const textarea = taRef.current;
+    if (!textarea) return;
+    const resize = () => resizeTextarea(textarea);
+    const observer = new ResizeObserver(resize);
+    const sidebar = textarea.closest('aside');
+    if (sidebar) observer.observe(sidebar);
+    window.addEventListener('resize', resize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
 
   useImperativeHandle(ref, () => ({
     focus: () => {
@@ -255,18 +302,16 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
     >
       <div className={composerFrameClass}>
         {contextSummary ? (
-          <div className="border-b border-[var(--color-border-subtle)] px-[12px] py-[10px]">
+          <div className="codesign-prompt-context border-b border-[var(--color-border-subtle)] px-[var(--space-3)] py-[var(--space-2)]">
             {contextSummary}
           </div>
         ) : null}
-        <div className="flex items-end gap-[var(--space-2)] px-[var(--space-2)] py-[var(--space-2)]">
-          {leadingAction ? <div className="shrink-0 pb-[1px]">{leadingAction}</div> : null}
+        <div className="px-[var(--space-3)] pt-[var(--space-2)]">
           <textarea
             ref={taRef}
             value={prompt}
             onChange={(e) => {
               setPrompt(e.target.value);
-              resizeTextarea(e.currentTarget);
             }}
             onKeyDown={handleKeyDown}
             onCompositionStart={() => {
@@ -277,18 +322,35 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
             }}
             onPaste={(e) => void handlePaste(e)}
             placeholder={t('chat.placeholderRich')}
-            rows={1}
-            className="codesign-prompt-textarea block min-h-[30px] min-w-0 flex-1 resize-none appearance-none border-0 bg-transparent px-[2px] py-[5px] text-[13.5px] leading-[1.55] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] shadow-none outline-none focus:outline-none focus:ring-0"
+            aria-label={t('chat.placeholderRich')}
+            rows={2}
+            className="codesign-prompt-textarea block w-full min-w-0 resize-none appearance-none border-0 bg-transparent py-[var(--space-1)] text-[var(--text-base)] leading-[var(--leading-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] shadow-none outline-none focus:outline-none focus:ring-0"
             style={{ fontFamily: 'var(--font-sans)' }}
           />
-
-          <div className="shrink-0 pb-[1px]">
+        </div>
+        <div className="codesign-prompt-actions flex items-center justify-between gap-[var(--space-2)] p-[var(--space-2)]">
+          <div className="min-w-0">{leadingAction}</div>
+          {runningLabel ? (
+            <div
+              aria-live="polite"
+              className="flex min-w-0 flex-1 items-center gap-[var(--space-2)] text-[var(--text-sm)] text-[var(--color-text-muted)]"
+            >
+              <span className="truncate">{runningLabel}</span>
+              <span
+                className="shrink-0 tabular-nums"
+                style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: "'tnum'" }}
+              >
+                {elapsedText}
+              </span>
+            </div>
+          ) : null}
+          <div className="shrink-0">
             {isGenerating ? (
               <button
                 type="button"
                 onClick={onCancel}
                 aria-label={t('chat.stop')}
-                className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-muted)] bg-[var(--color-surface-hover)] text-[var(--color-error)] shadow-[var(--shadow-soft)] transition-[background-color,border-color,color,transform] duration-150 hover:border-[var(--color-error)]/40 hover:bg-[var(--color-surface-active)] active:scale-[0.94]"
+                className="inline-flex h-[var(--size-control-md)] w-[var(--size-control-md)] items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border-muted)] bg-[var(--color-surface-hover)] text-[var(--color-error)] shadow-[var(--shadow-soft)] transition-[background-color,border-color,color,transform] duration-150 hover:border-[var(--color-error)]/40 hover:bg-[var(--color-surface-active)] active:scale-[0.94]"
               >
                 <Square className="w-[9px] h-[9px]" strokeWidth={0} fill="currentColor" />
               </button>
@@ -298,7 +360,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
                   type="submit"
                   disabled={!canSend}
                   aria-label={t('chat.send')}
-                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white shadow-[var(--shadow-soft)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-[var(--color-accent-hover)] hover:shadow-[var(--shadow-card)] active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-25 disabled:shadow-none"
+                  className="inline-flex h-[var(--size-control-md)] w-[var(--size-control-md)] items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-accent)] text-white shadow-[var(--shadow-soft)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-[var(--color-accent-hover)] hover:shadow-[var(--shadow-card)] active:scale-[0.94] disabled:cursor-not-allowed disabled:opacity-25 disabled:shadow-none"
                 >
                   <ArrowUp className="w-[15px] h-[15px]" strokeWidth={2.5} />
                 </button>
@@ -307,26 +369,6 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
           </div>
         </div>
       </div>
-      {runningLabel ? (
-        <div
-          aria-live="polite"
-          className="mt-[var(--space-2)] flex min-h-[18px] items-center justify-between gap-[var(--space-2)] px-[var(--space-1)] text-[11px] text-[var(--color-text-muted)]"
-        >
-          <div className="inline-flex min-w-0 items-center gap-[var(--space-1_5)]">
-            <span
-              aria-hidden
-              className="inline-block h-[6px] w-[6px] shrink-0 rounded-full bg-[var(--color-accent)] opacity-75 animate-pulse"
-            />
-            <span className="truncate">{runningLabel}</span>
-          </div>
-          <span
-            className="shrink-0 tabular-nums"
-            style={{ fontFamily: 'var(--font-mono)', fontFeatureSettings: "'tnum'" }}
-          >
-            {elapsedText}
-          </span>
-        </div>
-      ) : null}
     </form>
   );
 });

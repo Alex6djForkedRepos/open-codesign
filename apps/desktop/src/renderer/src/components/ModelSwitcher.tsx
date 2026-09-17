@@ -188,13 +188,16 @@ export function ModelSwitcher({ variant }: ModelSwitcherProps) {
   const isSidebar = variant === 'sidebar';
 
   return (
-    <div ref={rootRef} className={isSidebar ? 'relative w-fit' : 'relative w-full min-w-0'}>
+    <div
+      ref={rootRef}
+      className={isSidebar ? 'relative min-w-0 max-w-full' : 'relative w-full min-w-0'}
+    >
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={
           isSidebar
-            ? 'inline-flex h-5 min-w-0 items-center gap-[3px] rounded-[var(--radius-sm)] px-[2px] text-[11px] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)] cursor-pointer'
+            ? 'inline-flex min-h-[var(--space-6)] max-w-full min-w-0 items-center gap-[var(--space-1)] rounded-[var(--radius-sm)] px-[2px] text-[var(--text-sm)] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)] cursor-pointer'
             : 'inline-flex h-10 w-full min-w-0 items-center gap-[var(--space-2)] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--space-3)] select-none whitespace-nowrap transition-colors hover:bg-[var(--color-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]'
         }
         aria-haspopup="listbox"
