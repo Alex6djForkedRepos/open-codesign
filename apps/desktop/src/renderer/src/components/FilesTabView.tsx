@@ -41,6 +41,7 @@ import {
   useDesignFiles,
   useLazyDesignFileTree,
 } from '../hooks/useDesignFiles';
+import { usePreviewErrorLifecycle } from '../hooks/usePreviewErrorLifecycle';
 import type { FileTreeNode } from '../lib/file-tree';
 import { classifyMarkdownHref } from '../lib/markdown-links';
 import { workspacePathComparisonKey } from '../lib/workspace-path';
@@ -1582,7 +1583,7 @@ export function WorkspaceFilePreview({
     ? previewSource
     : null;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (!isTrustedPreviewMessageSource(event.source, iframeRef.current?.contentWindow)) return;
       handlePreviewMessage(
@@ -1761,6 +1762,7 @@ export function WorkspaceFilePreview({
     renderable,
     workspaceDevServerRequired,
   ]);
+  usePreviewErrorLifecycle(srcDoc, `${currentDesignId}:${path}`);
 
   // A WindowProxy survives srcdoc navigation. Discard anchors before the new
   // document can reuse a selector for a different element.

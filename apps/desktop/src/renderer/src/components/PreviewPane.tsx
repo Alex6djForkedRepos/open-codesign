@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { usePreviewErrorLifecycle } from '../hooks/usePreviewErrorLifecycle';
 import {
   clipboardFilesToWorkspaceBlobs,
   dataTransferFilesToWorkspaceFiles,
@@ -228,6 +229,7 @@ function PreviewSlot({
     [srcDocStableKey],
   );
   const previousDocument = useRef(srcDoc);
+  usePreviewErrorLifecycle(srcDoc, designId, active);
   useLayoutEffect(() => {
     if (active && previousDocument.current !== srcDoc) {
       useCodesignStore.getState().clearCanvasElement();
@@ -475,7 +477,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     }
   }, [comments, currentSnapshotId, commentBubble, currentDesignId, iframeLoadTick]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     function onMessage(event: MessageEvent): void {
       // Only accept messages from the ACTIVE iframe — background pool members
       // are inert from the user's POV and their messages would race with the
