@@ -244,9 +244,15 @@ export const OVERLAY_SCRIPT = `(function() {
       // Allow hash-jump ONLY when it resolves to an existing element on page.
       if (href.charAt(0) === '#' && href.length > 1) {
         var id = href.slice(1);
+        try { id = decodeURIComponent(id); } catch (_) {}
         var target = null;
         try { target = document.getElementById(id); } catch (_) {}
-        if (target) return; // let the browser scroll
+        if (target) {
+          // A workspace <base> turns even #fragment links into document navigation.
+          e.preventDefault();
+          target.scrollIntoView();
+          return;
+        }
       }
       e.preventDefault();
       e.stopPropagation();

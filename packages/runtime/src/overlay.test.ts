@@ -86,6 +86,7 @@ describe('OVERLAY_SCRIPT reattach loop warning throttle', () => {
 interface ListenerHarness {
   body: object;
   selectorMatches: Map<string, unknown[]>;
+  elementIds: Map<string, unknown>;
   documentListeners: Map<string, (e: unknown) => void>;
   windowListeners: Map<string, (e: unknown) => void>;
   parent: object;
@@ -95,6 +96,7 @@ interface ListenerHarness {
 function runOverlayWithHarness(): ListenerHarness {
   const body = {};
   const selectorMatches = new Map<string, unknown[]>();
+  const elementIds = new Map<string, unknown>();
   const documentListeners = new Map<string, (e: unknown) => void>();
   const windowListeners = new Map<string, (e: unknown) => void>();
   const postedToParent: unknown[] = [];
@@ -103,6 +105,7 @@ function runOverlayWithHarness(): ListenerHarness {
   const fakeDocument = {
     body,
     querySelectorAll: (selector: string) => selectorMatches.get(selector) ?? [],
+    getElementById: (id: string) => elementIds.get(id) ?? null,
     addEventListener: (type: string, fn: (e: unknown) => void) => {
       documentListeners.set(type, fn);
     },
@@ -124,8 +127,62 @@ function runOverlayWithHarness(): ListenerHarness {
     `with (window) { ${OVERLAY_SCRIPT} }`,
   );
   sandbox(fakeWindow, fakeDocument, { warn: () => {} }, fakeSetInterval);
-  return { body, selectorMatches, documentListeners, windowListeners, parent, postedToParent };
+  return {
+    body,
+    selectorMatches,
+    elementIds,
+    documentListeners,
+    windowListeners,
+    parent,
+    postedToParent,
+  };
 }
+
+describe('OVERLAY_SCRIPT fragment navigation', () => {
+  it.each([
+    ['#courses', 'courses'],
+    ['#%E8%AF%BE%E7%A8%8B', '课程'],
+    ['#invalid%encoding', 'invalid%encoding'],
+  ])('scrolls %s locally without following the workspace base URL', (href, id) => {
+    const h = runOverlayWithHarness();
+    const scrollIntoView = vi.fn();
+    h.elementIds.set(id, { scrollIntoView });
+    const preventDefault = vi.fn();
+    const stopPropagation = vi.fn();
+    h.documentListeners.get('click')?.({
+      target: {
+        tagName: 'SPAN',
+        parentElement: {
+          tagName: 'A',
+          href: `workspace://design/${href}`,
+          getAttribute: () => href,
+        },
+      },
+      preventDefault,
+      stopPropagation,
+    });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(stopPropagation).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    '#missing',
+    '/missing-page',
+    'https://example.com',
+  ])('retains the navigation boundary for %s', (href) => {
+    const h = runOverlayWithHarness();
+    const preventDefault = vi.fn();
+    const stopPropagation = vi.fn();
+    h.documentListeners.get('click')?.({
+      target: { tagName: 'A', href, getAttribute: () => href },
+      preventDefault,
+      stopPropagation,
+    });
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(stopPropagation).toHaveBeenCalledOnce();
+  });
+});
 
 describe('OVERLAY_SCRIPT stable clicked targets', () => {
   function select(h: ListenerHarness, target: object) {
