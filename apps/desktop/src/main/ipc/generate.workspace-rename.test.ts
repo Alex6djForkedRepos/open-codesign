@@ -202,6 +202,7 @@ import {
   routeRunPreferences,
 } from '@open-codesign/core';
 import { requestAsk } from '../ask-ipc';
+import { makeRuntimeVerifier } from '../done-verify';
 import { runPreview } from '../preview-runtime';
 import { preparePromptContext } from '../prompt-context';
 import { appendSessionChatMessage } from '../session-chat';
@@ -414,6 +415,11 @@ describe('generate IPC workspace rename coordination', () => {
       await preview?.(options);
       expect(runPreview).toHaveBeenCalledWith({
         ...options,
+        workspaceRoot: renamed.workspacePath,
+      });
+      const verifier = vi.mocked(generateViaAgent).mock.calls[0]?.[1]?.runtimeVerify;
+      await verifier?.('function App(){return null;}', { path: 'screens/App.jsx' });
+      expect(makeRuntimeVerifier).toHaveBeenLastCalledWith({
         workspaceRoot: renamed.workspacePath,
       });
     } finally {

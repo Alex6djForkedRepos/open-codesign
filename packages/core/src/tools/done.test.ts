@@ -200,6 +200,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App/>);`,
     const tool = makeDoneTool(fs, runtimeVerify);
     const res = await tool.execute('id5', { summary: 'shipped' });
     expect(runtimeVerify).toHaveBeenCalledOnce();
+    expect(runtimeVerify).toHaveBeenCalledWith(
+      '<!doctype html><html><body><main><h1>Hi</h1></main></body></html>',
+      { path: 'index.html' },
+    );
     expect(res.details.status).toBe('has_errors');
     expect(res.details.errors.some((e) => /ReferenceError/.test(e.message))).toBe(true);
     expect(res.details.errors.some((e) => e.source === 'console.error')).toBe(true);

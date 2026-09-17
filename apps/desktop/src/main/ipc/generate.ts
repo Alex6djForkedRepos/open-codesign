@@ -450,7 +450,6 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
     };
     const baseCtx = { designId, generationId: id } as const;
     const toolStartedAt = new Map<string, number>();
-    const runtimeVerify = makeRuntimeVerifier();
     const templatesRoot = path_module.join(app.getPath('userData'), 'templates');
     const currentWorkspaceRoot = () => requireWorkspaceRootForDesign(designId).workspaceRoot;
     const [frames, designSkills, initialWorkspaceFiles] = await Promise.all([
@@ -578,7 +577,10 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       },
       {
         fs,
-        runtimeVerify,
+        runtimeVerify: (source, context) =>
+          withStableWorkspacePath(designId, () =>
+            makeRuntimeVerifier({ workspaceRoot: currentWorkspaceRoot() })(source, context),
+          ),
         renderUiKit,
         judgeVisualParity,
         ...(generateImageAsset !== undefined ? { generateImageAsset } : {}),

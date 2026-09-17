@@ -121,7 +121,10 @@ function requiredDesignMdErrors(fs: TextEditorFsCallbacks, activePath: string): 
 /** Host-injected runtime verifier. Receives the raw artifact source (the
  *  agent's JSX module, NOT a fully-built srcdoc) and returns any console /
  *  load errors observed when the host actually executed it. */
-export type DoneRuntimeVerifier = (artifactSource: string) => Promise<DoneError[]>;
+export type DoneRuntimeVerifier = (
+  artifactSource: string,
+  context?: { path: string },
+) => Promise<DoneError[]>;
 
 const VOID_ELEMENTS = new Set([
   'area',
@@ -506,7 +509,7 @@ export function makeDoneTool(
       ];
       if (runtimeVerify && isRenderableDesignSourcePath(path)) {
         try {
-          const runtimeErrors = await runtimeVerify(file.content);
+          const runtimeErrors = await runtimeVerify(file.content, { path });
           errors.push(...runtimeErrors);
         } catch (err) {
           errors.push({

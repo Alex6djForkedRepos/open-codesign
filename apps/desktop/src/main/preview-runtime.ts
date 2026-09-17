@@ -13,7 +13,7 @@
 
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL, URL } from 'node:url';
 import {
   type RunPreviewOptions as CorePreviewOptions,
@@ -80,11 +80,7 @@ export async function runPreview(opts: RunPreviewOptions): Promise<PreviewResult
 
   let html: string;
   try {
-    html = buildPreviewDocument(source, {
-      path: sourcePath,
-      baseHref: pathToFileURL(absWorkspace.endsWith(sep) ? absWorkspace : `${absWorkspace}${sep}`)
-        .href,
-    });
+    html = await buildWorkspacePreviewDocument(source, absWorkspace, sourcePath);
   } catch (err) {
     return emptyFail(err instanceof Error ? err.message : String(err));
   }
@@ -376,6 +372,18 @@ async function readPreviewSource(absWorkspace: string, relPath: string): Promise
     throw new Error(`binary file cannot be previewed: ${relPath}`);
   }
   return source;
+}
+
+export async function buildWorkspacePreviewDocument(
+  source: string,
+  workspaceRoot: string,
+  sourcePath: string,
+): Promise<string> {
+  const absoluteSource = await resolveSafeWorkspaceChildPath(workspaceRoot, sourcePath);
+  return buildPreviewDocument(source, {
+    path: sourcePath,
+    baseHref: pathToFileURL(`${dirname(absoluteSource)}${sep}`).href,
+  });
 }
 
 export async function isPreviewFileUrlAllowed(

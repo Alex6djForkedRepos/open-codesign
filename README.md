@@ -73,6 +73,9 @@ paths and recognizes local `DESIGN.md` guidance. An absent `App.jsx` does not
 mean reference inputs are missing; the agent can inspect them before building.
 Local CSV references are included in the bounded agent text-file scan alongside
 Markdown, JSX, JSON, and SVG inputs.
+Preview and final verification resolve local assets relative to the source file
+inside the bound workspace. Missing assets and paths outside that workspace
+remain verification errors.
 
 From a blank prompt to a finished artifact, the agent plans, writes, self-checks, and ships something with hover states, tabs, and empty states already wired up:
 

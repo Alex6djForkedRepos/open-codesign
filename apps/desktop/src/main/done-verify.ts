@@ -16,12 +16,13 @@
 
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL, URL } from 'node:url';
 import type { DoneError, DoneRuntimeVerifier } from '@open-codesign/core';
 import { findSystemChrome } from '@open-codesign/exporters';
 import { buildSrcdoc } from '@open-codesign/runtime';
 import type { Browser, ConsoleMessage, HTTPRequest, Page } from 'puppeteer-core';
+import { buildWorkspacePreviewDocument, isPreviewFileUrlAllowed } from './preview-runtime';
 
 const VERIFY_LOAD_TIMEOUT_MS = 15_000;
 const SETTLE_AFTER_LOAD_MS = 1200;
@@ -90,9 +91,17 @@ function mapConsoleSource(raw: string): string | null {
   }
 }
 
-async function handleVerifierRequest(req: HTTPRequest, verifyFilePath: string): Promise<void> {
+async function handleVerifierRequest(
+  req: HTTPRequest,
+  verifyFilePath: string,
+  workspaceRoot?: string,
+): Promise<void> {
   try {
-    if (!isDoneVerifierRequestAllowed(req.url(), verifyFilePath)) {
+    const allowed =
+      workspaceRoot !== undefined && req.url().startsWith('file:')
+        ? await isPreviewFileUrlAllowed(req.url(), workspaceRoot, verifyFilePath)
+        : isDoneVerifierRequestAllowed(req.url(), verifyFilePath);
+    if (!allowed) {
       await req.abort('blockedbyclient');
       return;
     }
@@ -154,7 +163,11 @@ function pushUniqueError(
   errors.push(lineno !== undefined ? { message, source, lineno } : { message, source });
 }
 
-async function verifyWithSystemChrome(verifyUrl: string, verifyPath: string): Promise<DoneError[]> {
+async function verifyWithSystemChrome(
+  verifyUrl: string,
+  verifyPath: string,
+  workspaceRoot?: string,
+): Promise<DoneError[]> {
   const executablePath = await findSystemChrome();
   const puppeteer = (await import('puppeteer-core')).default;
   const userDataDir = await mkdtemp(join(tmpdir(), 'codesign-done-chrome-'));
@@ -180,7 +193,7 @@ async function verifyWithSystemChrome(verifyUrl: string, verifyPath: string): Pr
     await page.setViewport({ width: 1280, height: 800 });
     await page.setRequestInterception(true);
     page.on('request', (req: HTTPRequest) => {
-      void handleVerifierRequest(req, verifyPath);
+      void handleVerifierRequest(req, verifyPath, workspaceRoot);
     });
     page.on('console', (msg: ConsoleMessage) => {
       const source = mapConsoleSource(msg.type());
@@ -191,6 +204,18 @@ async function verifyWithSystemChrome(verifyUrl: string, verifyPath: string): Pr
     });
     page.on('pageerror', (err: unknown) => {
       pushUniqueError(errors, seen, toErrorMessage(err), 'pageerror');
+    });
+    page.on('requestfailed', (req: HTTPRequest) => {
+      pushUniqueError(
+        errors,
+        seen,
+        formatRuntimeLoadError(
+          'resource failed',
+          req.failure()?.errorText ?? 'unknown failure',
+          req.url(),
+        ),
+        'requestfailed',
+      );
     });
 
     await page.goto(verifyUrl, {
@@ -214,16 +239,23 @@ async function verifyWithSystemChrome(verifyUrl: string, verifyPath: string): Pr
   return errors;
 }
 
-export function makeRuntimeVerifier(): DoneRuntimeVerifier {
-  return async (artifactSource: string): Promise<DoneError[]> => {
-    const srcdoc = buildSrcdoc(artifactSource);
+export function makeRuntimeVerifier(options?: { workspaceRoot: string }): DoneRuntimeVerifier {
+  return async (artifactSource, context): Promise<DoneError[]> => {
+    const workspaceRoot = options ? resolve(options.workspaceRoot) : undefined;
+    const srcdoc = workspaceRoot
+      ? await buildWorkspacePreviewDocument(
+          artifactSource,
+          workspaceRoot,
+          context?.path ?? 'App.jsx',
+        )
+      : buildSrcdoc(artifactSource);
     const tempDir = await mkdtemp(join(tmpdir(), 'codesign-done-verify-'));
     const verifyPath = join(tempDir, 'verify.html');
     await writeFile(verifyPath, srcdoc, 'utf8');
     const verifyUrl = pathToFileURL(verifyPath).href;
 
     try {
-      return await verifyWithSystemChrome(verifyUrl, verifyPath);
+      return await verifyWithSystemChrome(verifyUrl, verifyPath, workspaceRoot);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
