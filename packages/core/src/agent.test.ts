@@ -675,7 +675,7 @@ describe('generateViaAgent()', () => {
     expect(agentCalls[0]?.options.initialState?.thinkingLevel).toBe('off');
   });
 
-  it('replays the prompt with thinking off after a first-turn reasoning_content error', async () => {
+  it('continues the existing prompt with thinking off after a first-turn reasoning_content error', async () => {
     scriptedAgent = {
       assistantText: '',
       stopReason: 'error',
@@ -703,8 +703,8 @@ describe('generateViaAgent()', () => {
     expect(result.artifacts).toHaveLength(1);
     expect(agentCalls).toHaveLength(2);
     expect(agentCalls[1]?.options.initialState?.thinkingLevel).toBe('off');
-    expect(agentCalls[1]?.continues).toBe(0);
-    expect(agentCalls[1]?.prompts).toHaveLength(1);
+    expect(agentCalls[1]?.continues).toBe(1);
+    expect(agentCalls[1]?.prompts).toHaveLength(0);
     expect(onRetry).toHaveBeenCalledWith(
       expect.objectContaining({ reason: expect.stringContaining('reasoning_content') }),
     );
@@ -2290,7 +2290,7 @@ describe('generateViaAgent() — first-turn retry', () => {
 });
 
 describe('generateViaAgent() — transport-level retry', () => {
-  it('retries a terminated error by creating a fresh agent with conversation replay', async () => {
+  it('retries a terminated error by continuing the transcript in a fresh agent', async () => {
     scriptedAgent = {
       assistantText: RESPONSE_WITH_ARTIFACT,
       stopReason: 'error',
@@ -2452,7 +2452,7 @@ describe('generateViaAgent() — transport-level retry', () => {
     expect(agentCalls.length).toBe(1);
   });
 
-  it('strips the failed turn from message history on retry', async () => {
+  it('retains the interrupted user in message history on retry', async () => {
     scriptedAgent = {
       assistantText: RESPONSE_WITH_ARTIFACT,
       stopReason: 'error',
@@ -2475,14 +2475,14 @@ describe('generateViaAgent() — transport-level retry', () => {
       },
       { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }) },
     );
-    // Second agent should be seeded with only the successful history
-    // (original 2 messages), not the failed turn (which would be 4 messages:
-    // user, assistant, user, failed-assistant)
     const retryAgentMessages = agentCalls[1]?.options.initialState?.messages;
-    expect(retryAgentMessages?.length).toBe(2);
+    expect(retryAgentMessages?.length).toBe(3);
+    expect(retryAgentMessages?.at(-1)?.role).toBe('user');
+    expect(agentCalls[1]?.prompts).toHaveLength(0);
+    expect(agentCalls[1]?.continues).toBe(1);
   });
 
-  it('strips aborted transport turns from message history on retry', async () => {
+  it('retains the interrupted user after provider-side transport aborts', async () => {
     scriptedAgent = {
       assistantText: RESPONSE_WITH_ARTIFACT,
       stopReason: 'aborted',
@@ -2507,14 +2507,13 @@ describe('generateViaAgent() — transport-level retry', () => {
     );
 
     const retryAgentMessages = agentCalls[1]?.options.initialState?.messages;
-    expect(retryAgentMessages?.length).toBe(2);
+    expect(retryAgentMessages?.length).toBe(3);
+    expect(retryAgentMessages?.at(-1)?.role).toBe('user');
+    expect(agentCalls[1]?.prompts).toHaveLength(0);
   });
 
-  it('strips tool-call and toolResult messages from the failed turn', async () => {
-    // Simulate a failed turn that includes tool activity:
-    // [user, assistant(success), user, assistant(tool-call), toolResult, assistant(error)]
-    // After strip, only [user, assistant(success)] should remain.
-    const { stripFailedTurn } = await import('./agent.js');
+  it('retains completed tool calls and results when removing the terminal failure', async () => {
+    const { stripTerminalAssistantFailure } = await import('./agent.js');
     const messages = [
       { role: 'user', content: 'first request', timestamp: 1 },
       {
@@ -2571,10 +2570,10 @@ describe('generateViaAgent() — transport-level retry', () => {
         errorMessage: 'fetch failed: terminated',
         timestamp: 6,
       },
-    ] as unknown as Parameters<typeof stripFailedTurn>[0];
-    const result = stripFailedTurn(messages);
-    // Should keep only the first 2 messages (user + successful assistant)
-    expect(result.length).toBe(2);
+    ] as unknown as Parameters<typeof stripTerminalAssistantFailure>[0];
+    const result = stripTerminalAssistantFailure(messages);
+    expect(result).toEqual(messages.slice(0, -1));
+    expect(result.length).toBe(5);
     expect(result[0]?.role).toBe('user');
     expect(result[1]?.role).toBe('assistant');
     expect((result[1] as unknown as Record<string, unknown>)['stopReason']).toBe('stop');

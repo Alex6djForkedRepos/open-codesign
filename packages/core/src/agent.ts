@@ -538,31 +538,6 @@ const IMAGE_ASSET_TOOL_GUIDANCE = [
 
 const MAX_TRANSPORT_RETRIES = 2;
 
-/**
- * Remove the failed final turn from the agent message history so a fresh agent
- * can retry with a clean slate. Walks backwards from the terminal error
- * assistant message to find the user message that started the turn, removing
- * all intermediate tool-call / toolResult entries in between.
- */
-export function stripFailedTurn(messages: readonly AgentMessage[]): AgentMessage[] {
-  let errorIndex = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg) continue;
-    if (errorIndex === -1) {
-      const stopReason = (msg as PiAssistantMessage).stopReason;
-      if (msg.role === 'assistant' && (stopReason === 'error' || stopReason === 'aborted')) {
-        errorIndex = i;
-      }
-      continue;
-    }
-    if (msg.role === 'user') {
-      return [...messages.slice(0, i), ...messages.slice(errorIndex + 1)];
-    }
-  }
-  return errorIndex === -1 ? [...messages] : messages.slice(0, errorIndex);
-}
-
 function trackFsMutations(
   fs: TextEditorFsCallbacks,
   resourceState: ResourceStateV1,
@@ -709,7 +684,8 @@ function aggregateAssistantUsage(messages: readonly AgentMessage[]): {
   return totals;
 }
 
-function stripTerminalAssistantFailure(messages: readonly AgentMessage[]): AgentMessage[] {
+// Retain the actual delivered instruction and completed tools; continuing must not replay either.
+export function stripTerminalAssistantFailure(messages: readonly AgentMessage[]): AgentMessage[] {
   const out = [...messages];
   const last = out[out.length - 1];
   if (
@@ -720,21 +696,6 @@ function stripTerminalAssistantFailure(messages: readonly AgentMessage[]): Agent
     out.pop();
   }
   return out;
-}
-
-function prepareReasoningFallback(messages: readonly AgentMessage[]): {
-  messages: AgentMessage[];
-  mode: 'continue' | 'prompt';
-} {
-  const cleanMessages = stripTerminalAssistantFailure(messages);
-  const last = cleanMessages[cleanMessages.length - 1];
-  if (last?.role === 'toolResult') {
-    return { messages: cleanMessages, mode: 'continue' };
-  }
-  if (last?.role === 'user') {
-    return { messages: cleanMessages.slice(0, -1), mode: 'prompt' };
-  }
-  return { messages: cleanMessages, mode: 'prompt' };
 }
 
 function projectContextSections(context: GenerateInput['projectContext']): string[] {
@@ -1306,7 +1267,7 @@ async function generateViaAgentInternal(
   let capturedGetApiKeyError: unknown = null;
 
   // Factory for creating agents with a given message history. Used for both
-  // the initial agent and transport-level retry agents (conversation replay).
+  // the initial agent and retry agents that continue the interrupted transcript.
   const createRetryAgent = (
     messages: AgentMessage[],
     retryThinkingLevel = thinkingLevel,
@@ -1442,7 +1403,7 @@ async function generateViaAgentInternal(
   }
 
   // Post-agent recovery:
-  // - Retry transport-level failures by replaying the turn from clean history.
+  // - Retry transport-level failures from the interrupted user/tool-result boundary.
   // - Retry reasoning_content round-trip failures once with thinking off,
   //   preserving the current transcript up to the failed provider response.
   let transportRetryCount = 0;
@@ -1470,18 +1431,14 @@ async function generateViaAgentInternal(
         reason: `reasoning retry: ${checkMsg.errorMessage}`,
       });
 
-      const fallback = prepareReasoningFallback(agent.state.messages);
+      const cleanMessages = stripTerminalAssistantFailure(agent.state.messages);
       capturedGetApiKeyError = null;
-      agent = createRetryAgent(fallback.messages, 'off');
+      agent = createRetryAgent(cleanMessages, 'off');
       attachAbortSignal(agent);
 
       const retryStart = Date.now();
       try {
-        if (fallback.mode === 'continue') {
-          await agent.continue();
-        } else {
-          await agent.prompt(userContent, promptImages);
-        }
+        await agent.continue();
         await agent.waitForIdle();
       } catch (err) {
         log.error('[generate] step=reasoning_retry.fail', {
@@ -1518,14 +1475,14 @@ async function generateViaAgentInternal(
       reason: `transport retry: ${checkMsg.errorMessage}`,
     });
 
-    const cleanMessages = stripFailedTurn(agent.state.messages);
+    const cleanMessages = stripTerminalAssistantFailure(agent.state.messages);
     capturedGetApiKeyError = null;
-    agent = createRetryAgent(cleanMessages);
+    agent = createRetryAgent(cleanMessages, reasoningFallbackUsed ? 'off' : thinkingLevel);
     attachAbortSignal(agent);
 
     const retryStart = Date.now();
     try {
-      await agent.prompt(userContent, promptImages);
+      await agent.continue();
       await agent.waitForIdle();
     } catch (err) {
       log.error('[generate] step=transport_retry.fail', {
