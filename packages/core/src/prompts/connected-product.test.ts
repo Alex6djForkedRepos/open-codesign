@@ -72,7 +72,7 @@ describe('connected product prompt contract', () => {
       'a small realistic dataset',
       'edit the working frame',
       'then exercise the core flow',
-      'recheck affected behavior and the target viewport before `done`',
+      'Recheck affected behavior and the target viewport before `done`',
       'not three mandatory extra rounds',
       'avoid per-line tool churn or repeated full rewrites',
       'An early frame preview proves rendering only',
@@ -86,6 +86,42 @@ describe('connected product prompt contract', () => {
     }
     expect(prompt).not.toContain('Preview the complete pass');
     expect(prompt).not.toContain('focused edits to a complete first pass, then `preview(App.jsx)`');
+  });
+
+  it('prioritizes implemented design decisions without delaying the first frame', () => {
+    const prompt = composeSystemPrompt({ mode: 'create' });
+    for (const contract of [
+      'Once broad behavior works, expose useful source-backed design decisions as tweaks',
+      'never delay the first working frame for controls',
+      'Prefer 2-5 consequential choices',
+      'primary brand token, density, type scale, layout/emphasis, or content visibility',
+      'not pixel-by-pixel knobs',
+      'Defaults must match actual source and the brief',
+      'meaningful labels/options and safe ranges',
+      'Bind each choice across relevant screens through shared tokens',
+      'Structural variants must be implemented and supported',
+      '`tweaks()` discovers values; it does not create bindings',
+      'Check representative alternatives and restore defaults',
+      'Artifact preview cannot click the host tweak panel',
+      "Preserve the user's current values through later agent edits",
+      'not by assuming automatic tweak-tool updates',
+    ]) {
+      expect(prompt, contract).toContain(contract);
+    }
+    expect(prompt).not.toContain('TWEAK-SCHEMA-BEGIN');
+  });
+
+  it('keeps targeted tweaks in workspace marker edits rather than redesign or source in chat', () => {
+    const prompt = composeSystemPrompt({ mode: 'tweak' });
+    expect(prompt).toContain("preserve the user's other current values");
+    expect(prompt).toContain('update only the marker JSON through workspace edits');
+    expect(prompt).toContain('Preserve formatting outside the marker block');
+    expect(prompt).toContain('do not emit source in chat');
+    expect(prompt).toContain('A marker edit alone does not prove a rendered effect');
+    expect(prompt).toContain(
+      'Do not add controls, variants, screens, or unrelated `DESIGN.md` edits during a targeted tweak',
+    );
+    expect(prompt).not.toContain('Re-emit the full artifact');
   });
 
   it.each([
@@ -144,6 +180,21 @@ describe('connected product builtin method contracts', () => {
         'a mental walkthrough is not an executed test',
         'structured step results',
         'If steps are unavailable, disclose',
+        'safe number',
+        'variants actually implemented',
+        'Do not imply backend, authentication, or payment capability with a switch',
+        'Artifact preview cannot click the host tweak panel',
+        'Do not leave a test value in the final source',
+        'enum options are plain strings',
+        'Structural JSX may consume `TWEAK_DEFAULTS`',
+        'Do not copy this declaration into',
+      ],
+      'design-system-baton': [
+        'Treat current user-selected tweak values as design decisions',
+        'During broader agent edits',
+        'explicitly synchronize',
+        'does not automatically update unbound files',
+        'For a targeted marker-only tweak, preserve unrelated files',
       ],
       'accessibility-states': [
         'focus restoration to the opener',
@@ -162,6 +213,21 @@ describe('connected product builtin method contracts', () => {
     const craft = skills.find((skill) => skill.id === 'craft-polish');
     expect(craft?.body).not.toContain('At least 3 observable state changes');
     expect(craft?.body).not.toContain('Add at least 3 small details');
+    const schema = craft?.body.match(
+      /\/\*TWEAK-SCHEMA-BEGIN\*\/([\s\S]*?)\/\*TWEAK-SCHEMA-END\*\//,
+    )?.[1];
+    const defaults = craft?.body.match(/\/\*EDITMODE-BEGIN\*\/([\s\S]*?)\/\*EDITMODE-END\*\//)?.[1];
+    if (!schema || !defaults) throw new Error('Missing source-backed tweak declaration example');
+    expect(JSON.parse(schema)).toEqual({
+      density: { kind: 'enum', options: ['comfortable', 'compact'] },
+      gap: { kind: 'number', min: 8, max: 32, step: 2, unit: 'px' },
+      showNotes: { kind: 'boolean' },
+    });
+    expect(JSON.parse(defaults)).toEqual({
+      density: 'comfortable',
+      gap: 16,
+      showNotes: true,
+    });
     const example = craft?.body.match(/```json\n([\s\S]*?)\n```/)?.[1];
     expect(example).toBeDefined();
     if (!example) throw new Error('Missing bounded preview example');

@@ -70,6 +70,74 @@ Before `done`:
 - Remove debug labels, placeholder copy, "TODO", "lorem", fake filenames, and generic names.
 - Ensure `TWEAK_DEFAULTS` exposes only meaningful controls, not every pixel.
 
+## Human Design Decisions
+
+When controls are requested or useful, expose 2-5 consequential choices after
+the main behavior works, not before the first working frame. Prioritize the
+largest useful visual differences: primary brand token, reading density,
+type scale, card layout/emphasis, or content visibility. Do not add controls
+or questions to narrow revisions, documents, or throwaway artifacts merely
+to satisfy a quota.
+
+- Ground the default in the brief and current source. Name the tradeoff,
+  such as reading density with comfortable/compact options, rather than
+  exposing implementation names or every padding value.
+- Derive declarations from stable source. Every default must equal its
+  rendered starting value; use meaningful enum options and safe number
+  bounds/steps. Include only variants actually implemented in the source.
+- Bind shared choices across relevant screens. Use `--ocd-tweak-*` CSS
+  properties for visual values, not one-time reads that leave rendered
+  styles unchanged. A number, enum, or boolean existing in JSON is not a
+  binding; a layout/visibility variant needs working runtime behavior.
+- Do not imply backend, authentication, or payment capability with a switch.
+  Do not promise arbitrary cross-file updates from `tweaks()`; it discovers
+  declared values rather than implementing their consumers.
+- Preserve the user's current knob choices through later edits unless the
+  request overrides them. Read the latest source before changing defaults.
+
+### Source Declaration
+
+The panel humanizes camelCase keys; enum options are plain strings, not
+label/value objects. Explain the tradeoff briefly in the handoff rather than
+inventing schema label fields. For source that actually implements these
+choices, the existing declaration format is:
+
+```js
+const TWEAK_SCHEMA = /*TWEAK-SCHEMA-BEGIN*/{
+  "density": { "kind": "enum", "options": ["comfortable", "compact"] },
+  "gap": { "kind": "number", "min": 8, "max": 32, "step": 2, "unit": "px" },
+  "showNotes": { "kind": "boolean" }
+}/*TWEAK-SCHEMA-END*/;
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "comfortable",
+  "gap": 16,
+  "showNotes": true
+}/*EDITMODE-END*/;
+```
+
+Schema keys must match the declared defaults. Use `kind: "color"` for color
+controls; do not turn arbitrary strings into enum choices without implementing
+them. Structural JSX may consume `TWEAK_DEFAULTS` when the runtime reruns it
+with updated values; for example, `showNotes` must actually govern the notes
+content and `density` must select implemented layouts. Ordinary visual values
+should still use CSS custom properties. Do not copy this declaration into
+unbound source merely to populate a panel.
+
+### Check The Actual Effect
+
+Audit each declared key through its consumers, including dependent screens.
+Check representative alternate values and range boundaries for their intended
+visual effect and readable layouts, then restore the user's defaults.
+If controls exist inside the artifact, use available preview steps to change
+them and assert the effect. Otherwise, use focused source edits to the exact
+bound values and preview the alternate, then restore and recheck the original.
+Do not leave a test value in the final source.
+
+Artifact preview cannot click the host tweak panel. A source-binding audit or
+previewed source variant does not prove host-panel interaction or persistence;
+state that limit honestly. Do not add fake in-artifact controls just to claim
+the host panel was tested.
+
 ## Bounded Preview Check
 
 If the live `preview` schema supports `viewport` and `steps`, use unique

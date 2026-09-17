@@ -95,6 +95,22 @@ Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts.
   type, spacing, radius, or repeated components.
 - If `DESIGN.md` is invalid, repair the schema before `done()`.
 
+## Human Choices And Source Tokens
+
+Treat current user-selected tweak values as design decisions, not temporary
+defaults to overwrite on the next agent turn. Read the latest source and
+`DESIGN.md`; preserve those choices unless the request overrides them.
+During broader agent edits that change stable tokens, explicitly synchronize
+their source values, relevant screen bindings, and corresponding `DESIGN.md`
+entries. Keep control defaults aligned with the rendered source and describe
+meaningful tradeoffs, not a catalog of pixel-level knobs.
+
+The `tweaks()` tool does not automatically update unbound files or
+`DESIGN.md`. Do not promise cross-file propagation merely because keys have
+the same name. For a targeted marker-only tweak, preserve unrelated files;
+reconcile the baton during the next substantive token edit instead of silently
+expanding the user's request.
+
 ## Don't
 
 - Do not paste full source files, long meeting notes, or tool logs into

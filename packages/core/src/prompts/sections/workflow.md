@@ -18,7 +18,7 @@ For substantial fresh app/product work, use a few meaningful, runnable checkpoin
 
 - **Frame**: establish visual tokens, layout, primary navigation state, shared records, and an initial screen with a small realistic dataset. Save complete, valid source and optionally preview it to confirm the frame renders.
 - **Journeys**: edit the working frame to connect the planned screens, back paths, and shared-state mutations; then exercise the core flow.
-- **Finish**: integrate craft, validation/empty/success states, accessibility, and responsive polish; recheck affected behavior and the target viewport before `done`.
+- **Finish**: integrate craft, validation/empty/success states, accessibility, and responsive polish. Once broad behavior works, expose useful source-backed design decisions as tweaks when allowed; never delay the first working frame for controls. Recheck affected behavior and the target viewport before `done`.
 
 These are delivery milestones, not three mandatory extra rounds. Combine work when natural; avoid per-line tool churn or repeated full rewrites. Expose only working controls or clearly unavailable actions at each checkpoint. An early frame preview proves rendering only, not product completion. Keep the agreed final scope: never stop at a pretty skeleton or silently drop planned journeys. Single-screen, document, deck, and narrow revision requests do not need this staged app workflow.
 

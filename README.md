@@ -205,6 +205,8 @@ For app requests, the agent is guided to build a **bounded, connected local prot
 
 Substantial fresh apps use a few runnable milestones: an early coherent frame with visual tokens and realistic initial content, connected journeys and shared-state actions, then integrated craft and responsive refinement. The agent edits complete, readable source at each checkpoint rather than holding back one giant file or showing generation placeholders. An early frame preview is progress, not completion; the final requested journeys still need to be implemented and checked. This is workflow guidance, not a guaranteed generation-speed improvement.
 
+When useful or requested, tweak controls focus on consequential choices such as brand, density, type scale, and implemented layout variants, rather than every pixel. Defaults should match the source, choices should affect the relevant screens, and later agent edits should preserve your selections. Checking a source variant in preview does not verify the separate host tweak panel or guarantee automatic updates to unbound files.
+
 These are interactive prototypes, not production services. Data and service actions are simulated; backend setup, real authentication, and payments are not implied. State is in memory by default and may reset on reload. The agent previews the result and, when supported by the preview tool, exercises a bounded journey at the target viewport, repairs concrete failures, and distinguishes runtime checks from interactions actually tested.
 
 ---
