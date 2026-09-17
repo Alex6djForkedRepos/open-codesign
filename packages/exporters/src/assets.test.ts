@@ -58,4 +58,31 @@ describe('local exporter assets', () => {
 
     expect(out).toContain('src="assets/logo.svg?v=1"');
   });
+
+  it('preserves CSS quoting inside JSX style strings', async () => {
+    const source =
+      'function App() { return <div style={{backgroundImage:"url(assets/logo.svg)"}} />; }';
+    const out = await inlineLocalAssetsInHtml(source, {
+      assetBasePath: tempDir,
+      assetRootPath: tempDir,
+    });
+    expect(out).toContain('backgroundImage:"url(data:image/svg+xml;charset=utf-8,');
+    expect(out).not.toContain('url("');
+    expect(out).toContain(')"}}');
+    const archive = rewriteHtmlLocalAssetReferences(source.replace('url(assets/', 'url(/assets/'), {
+      assetBasePath: tempDir,
+      assetRootPath: tempDir,
+    });
+    expect(archive).toBe(source);
+  });
+
+  it('escapes text assets for single-quoted attributes and unquoted CSS URLs', async () => {
+    writeFileSync(join(tempDir, 'assets', 'quoted.svg'), "<svg><title>It's (local)</title></svg>");
+    const out = await inlineLocalAssetsInHtml("<img src='assets/quoted.svg'>", {
+      assetBasePath: tempDir,
+      assetRootPath: tempDir,
+    });
+    expect(out).toContain('It%27s%20%28local%29');
+    expect(out.match(/'/g)).toHaveLength(2);
+  });
 });

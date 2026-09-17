@@ -2,8 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { classifyRenderableSource } from '@open-codesign/runtime';
-import { inlineLocalAssetsInHtml, type LocalAssetOptions } from './assets';
-import { buildHtmlDocument } from './html';
+import type { LocalAssetOptions } from './assets';
+import { buildInlineHtmlDocument } from './html';
 
 export type BrowserWaitUntil = 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
 
@@ -23,15 +23,11 @@ export async function buildExportHtmlDocument(
   artifactSource: string,
   opts: BrowserRenderOptions = {},
 ): Promise<string> {
-  let html = buildHtmlDocument(artifactSource, {
+  return buildInlineHtmlDocument(artifactSource, {
+    ...opts,
     prettify: false,
-    sourcePath: opts.sourcePath,
     injectTailwind: opts.injectTailwind ?? true,
   });
-  if (opts.inlineLocalAssets ?? true) {
-    html = await inlineLocalAssetsInHtml(html, opts);
-  }
-  return html;
 }
 
 export function shouldRenderForStaticDom(

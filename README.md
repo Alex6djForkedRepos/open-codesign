@@ -288,7 +288,7 @@ Add a `SKILL.md` to any project to teach the model your own taste.
 - **Light + dark themes**, **EN + 简体中文 UI** with live toggle
 
 ### Export and packaging
-- **Five export formats** — HTML (inlined CSS), PDF (local Chrome), PPTX, ZIP, Markdown
+- **Five export formats** — HTML (inlined local assets), PDF (local Chrome), PPTX, ZIP, Markdown. Literal local image and CSS URL references in JSX/TSX are resolved before runtime encoding; ZIP also preserves the original editable source. Dynamically computed asset paths are not statically collected.
 - **GitHub Release pipeline** — unsigned DMG (macOS), EXE (Windows), AppImage (Linux). Code-signing lands in v0.5 along with opt-in auto-update
 
 ---

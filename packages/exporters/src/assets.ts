@@ -149,10 +149,11 @@ export function rewriteHtmlLocalAssetReferences(
     const raw = (css[2] ?? '').trim();
     const resolved = resolveAssetReference(raw, root, root.basePath);
     if (resolved !== null) {
+      const start = css.index + (css[0]?.lastIndexOf(raw) ?? 0);
       replacements.push({
-        start: css.index,
-        end: css.index + (css[0]?.length ?? 0),
-        value: `url("${resolved.archivePath}${resolved.suffix}")`,
+        start,
+        end: start + raw.length,
+        value: `${resolved.archivePath}${resolved.suffix}`,
       });
     }
     css = urlRe.exec(html);
@@ -271,11 +272,8 @@ async function collectCssUrlReplacements(
     const raw = (match[2] ?? '').trim();
     const dataUri = await readReferenceAsDataUri(raw, root, contextDir, seen);
     if (dataUri !== null) {
-      replacements.push({
-        start: match.index,
-        end: match.index + (match[0]?.length ?? 0),
-        value: `url("${dataUri}")`,
-      });
+      const start = match.index + (match[0]?.lastIndexOf(raw) ?? 0);
+      replacements.push({ start, end: start + raw.length, value: dataUri });
     }
     match = urlRe.exec(input);
   }
@@ -436,7 +434,11 @@ function applyReplacements(input: string, replacements: Replacement[]): string {
 
 function toDataUri(content: Buffer, mime: string, encodeAsText: boolean): string {
   if (!encodeAsText) return `data:${mime};base64,${content.toString('base64')}`;
-  return `data:${mime};charset=utf-8,${encodeURIComponent(content.toString('utf8'))}`;
+  const encoded = encodeURIComponent(content.toString('utf8')).replace(
+    /['()]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `data:${mime};charset=utf-8,${encoded}`;
 }
 
 function shouldEncodeAsText(filePath: string): boolean {

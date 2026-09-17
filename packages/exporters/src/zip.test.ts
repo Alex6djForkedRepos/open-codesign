@@ -132,6 +132,28 @@ describe('exportZip', () => {
     expect(readFileSync(join(extractDir, 'index.html'), 'utf8')).toContain('src="assets/logo.svg"');
   });
 
+  it(
+    'collects JSX assets before serialization while preserving editable source',
+    async () => {
+      const source = 'function App() { return <img src="../assets/logo.svg" />; }';
+      const dest = join(tempDir, 'jsx-assets.zip');
+      await exportZip(source, dest, {
+        sourcePath: 'screens/App.jsx',
+        assetBasePath: join(tempDir, 'screens'),
+        assetRootPath: tempDir,
+      });
+      const { Unzip } = await import('zip-lib');
+      const extractDir = join(tempDir, 'jsx-assets-extracted');
+      await new Unzip().extract(dest, extractDir);
+      expect(readFileSync(join(extractDir, 'assets', 'logo.svg'), 'utf8')).toBe('<svg></svg>');
+      expect(readFileSync(join(extractDir, 'index.html'), 'utf8')).toContain(
+        'src=\\"assets/logo.svg\\"',
+      );
+      expect(readFileSync(join(extractDir, 'source', 'screens', 'App.jsx'), 'utf8')).toBe(source);
+    },
+    JSX_ZIP_TIMEOUT_MS,
+  );
+
   it('bundles workspace DESIGN.md when present', async () => {
     writeFileSync(join(tempDir, 'DESIGN.md'), '---\nversion: alpha\nname: Zip Test\n---\n', 'utf8');
     const dest = join(tempDir, 'design-md.zip');
