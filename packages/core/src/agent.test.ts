@@ -1791,11 +1791,9 @@ describe('generateViaAgent()', () => {
     expect(sys).toContain('Use `create` for new files');
     expect(sys).toContain('Prefer progressive generation');
     expect(sys).toContain('coherent first pass');
-    expect(sys).toContain('complete first pass');
-    expect(sys).toContain(
-      'Do not call `preview` while a previewable artifact is still only a scaffold',
-    );
-    expect(sys).toContain('A complete first `create` is acceptable');
+    expect(sys).toContain('small renderable checkpoint early');
+    expect(sys).toContain('An early coherent frame may be previewed before all journeys exist');
+    expect(sys).toContain('a few meaningful, runnable checkpoints');
     expect(sys).toContain('Interleave major tool groups');
     expect(sys).toContain('under 18 words');
     expect(sys).toContain('`str_replace`, or `insert`');
