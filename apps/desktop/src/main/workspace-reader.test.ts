@@ -58,11 +58,13 @@ describe('readWorkspaceFilesAt', () => {
     await writeFile(join(root, 'state.ts'), 'export const state = {};');
     await writeFile(join(root, 'package.json'), '{"type":"module"}');
     await writeFile(join(root, 'README.md'), '# Notes');
+    await writeFile(join(root, 'schedule.csv'), 'title,seats\n"Morning, together",4\n');
     const result = await readWorkspaceFilesAt(root);
     expect(result.map((f) => f.file).sort()).toEqual([
       'App.tsx',
       'README.md',
       'package.json',
+      'schedule.csv',
       'state.ts',
     ]);
   });

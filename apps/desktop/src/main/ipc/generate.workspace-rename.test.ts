@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { Design } from '@open-codesign/shared';
@@ -195,7 +195,12 @@ vi.mock('../ask-ipc', () => ({
   requestAsk: vi.fn(async () => ({ status: 'answered', answers: [] })),
 }));
 
-import { generateViaAgent, type RunPreviewOptions, routeRunPreferences } from '@open-codesign/core';
+import {
+  generateViaAgent,
+  makeTextEditorTool,
+  type RunPreviewOptions,
+  routeRunPreferences,
+} from '@open-codesign/core';
 import { requestAsk } from '../ask-ipc';
 import { runPreview } from '../preview-runtime';
 import { preparePromptContext } from '../prompt-context';
@@ -239,22 +244,27 @@ describe('generate IPC workspace rename coordination', () => {
   });
 
   it.each([
-    { extraFiles: 0, padding: 0 },
-    { extraFiles: 205, padding: 0 },
-    { extraFiles: 205, padding: 140 },
-  ])('provides seeded reference inventory without App.jsx ($extraFiles extra files, $padding padding)', async ({
+    { pack: 'common-ground', extraFiles: 0, padding: 0 },
+    { pack: 'common-ground', extraFiles: 205, padding: 0 },
+    { pack: 'common-ground', extraFiles: 205, padding: 140 },
+    { pack: 'daymark', extraFiles: 0, padding: 0 },
+    { pack: 'trailhead', extraFiles: 0, padding: 0 },
+  ])('provides readable $pack references without App.jsx ($extraFiles extra files, $padding padding)', async ({
+    pack,
     extraFiles,
     padding,
   }) => {
     const db = initTestDb();
-    const design = createDesign(db, 'Common Ground');
-    const workspace = path.join(defaultWorkspaceRoot, 'Common-Ground');
+    const design = createDesign(db, pack);
+    const workspace = path.join(defaultWorkspaceRoot, pack);
     await mkdir(workspace);
     updateDesignWorkspace(db, design.id, workspace);
-    const names = ['product-brief.md', 'schedule.csv', 'poster.svg', 'logo.svg', 'DESIGN.md'];
+    const names = await readdir(
+      new URL(`../../../resources/demo-inputs/${pack}/`, import.meta.url),
+    );
     for (const name of names) {
       const content = await readFile(
-        new URL(`../../../resources/demo-inputs/common-ground/${name}`, import.meta.url),
+        new URL(`../../../resources/demo-inputs/${pack}/${name}`, import.meta.url),
         'utf8',
       );
       await writeFile(path.join(workspace, name), content);
@@ -271,7 +281,9 @@ describe('generate IPC workspace rename coordination', () => {
       attachments: [],
       referenceUrl: null,
       designSystem: null,
-      projectContext: { designMd: await readFile(path.join(workspace, 'DESIGN.md'), 'utf8') },
+      projectContext: names.includes('DESIGN.md')
+        ? { designMd: await readFile(path.join(workspace, 'DESIGN.md'), 'utf8') }
+        : {},
     });
     coreCalls.routeResults.push({
       preferences: {
@@ -280,7 +292,7 @@ describe('generate IPC workspace rename coordination', () => {
         bitmapAssets: 'auto',
         reusableSystem: 'auto',
       },
-      needsClarification: true,
+      needsClarification: pack === 'common-ground',
       clarificationQuestions: [
         {
           id: 'missing-source-files',
@@ -294,7 +306,7 @@ describe('generate IPC workspace rename coordination', () => {
     const pending = Promise.resolve(
       getHandler('codesign:v1:generate')(null, {
         schemaVersion: 1,
-        prompt: 'Build Common Ground from the supplied local references.',
+        prompt: `Build ${pack} from the supplied local references.`,
         history: [],
         model: { provider: 'mock-provider', modelId: 'mock-model' },
         attachments: [],
@@ -307,8 +319,8 @@ describe('generate IPC workspace rename coordination', () => {
       const state = vi.mocked(routeRunPreferences).mock.calls[0]?.[0].workspaceState;
       expect(state).toMatchObject({
         hasSource: false,
-        hasDesignMd: true,
-        hasDesignSystem: true,
+        hasDesignMd: names.includes('DESIGN.md'),
+        hasDesignSystem: names.includes('DESIGN.md'),
         fileInventory: {
           paths: expect.arrayContaining(names),
           truncated: extraFiles > 0,
@@ -316,11 +328,32 @@ describe('generate IPC workspace rename coordination', () => {
         },
       });
       const inventory = state?.['fileInventory'] as { paths: string[] };
-      if (padding === 0) expect(inventory.paths).toHaveLength(extraFiles > 0 ? 200 : 5);
+      if (padding === 0) expect(inventory.paths).toHaveLength(extraFiles > 0 ? 200 : names.length);
       else expect(inventory.paths.length).toBeLessThan(200);
       expect(inventory.paths.join('').length).toBeLessThanOrEqual(16_000);
       expect(inventory.paths.join('\n')).not.toContain('.private');
       expect(requestAsk).not.toHaveBeenCalled();
+      const agentFs = vi.mocked(generateViaAgent).mock.calls[0]?.[1]?.fs;
+      if (!agentFs) throw new Error('Generation did not receive its filesystem');
+      const readTool = makeTextEditorTool(agentFs);
+      for (const name of names) {
+        expect(await agentFs.view(name)).toMatchObject({
+          content: await readFile(path.join(workspace, name), 'utf8'),
+        });
+        const result = await readTool.execute(`read-${name}`, {
+          command: 'view',
+          path: name,
+          view_range: [1, -1],
+        });
+        expect(
+          result.content.some(
+            (block) => block.type === 'text' && block.text.includes('Path not found'),
+          ),
+        ).toBe(false);
+        expect(result.content.some((block) => block.type === 'text' && block.text.length > 0)).toBe(
+          true,
+        );
+      }
     } finally {
       generateControl.release();
       await pending;

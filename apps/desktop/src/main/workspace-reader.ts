@@ -15,6 +15,7 @@ export const DEFAULT_WORKSPACE_PATTERNS = [
   '**/*.mjs',
   '**/*.cjs',
   '**/*.json',
+  '**/*.csv',
   '**/*.svg',
   '**/*.md',
   '**/*.txt',
