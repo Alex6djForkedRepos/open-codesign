@@ -861,6 +861,19 @@ export function defaultWorkspacePreviewPath(files: DesignFileEntry[]): string | 
   );
 }
 
+type WorkspaceFileSelection = { designId: string | null; path: string };
+
+export function workspacePreviewPathForSelection(
+  files: DesignFileEntry[],
+  designId: string | null,
+  selection: WorkspaceFileSelection | null,
+): string | null {
+  if (selection?.designId === designId && files.some((file) => file.path === selection.path)) {
+    return selection.path;
+  }
+  return defaultWorkspacePreviewPath(files);
+}
+
 export function externalAppManagedFallbackPath(input: {
   selectedPath: string | null;
   defaultPath: string | null;
@@ -1802,7 +1815,8 @@ export function FilesTabView() {
 
   const defaultPath = useMemo(() => defaultWorkspacePreviewPath(files), [files]);
 
-  const [selectedPath, setSelectedPath] = useState<string | null>(defaultPath);
+  const [fileSelection, setFileSelection] = useState<WorkspaceFileSelection | null>(null);
+  const selectedPath = workspacePreviewPathForSelection(files, currentDesignId, fileSelection);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [fileBrowserWidth, setFileBrowserWidth] = useState(initialFileBrowserWidth);
   const [isFileBrowserResizing, setIsFileBrowserResizing] = useState(false);
@@ -1955,10 +1969,14 @@ export function FilesTabView() {
   }
 
   useEffect(() => {
-    if (!selectedPath || !files.find((f) => f.path === selectedPath)) {
-      setSelectedPath(defaultPath);
+    if (
+      fileSelection &&
+      (fileSelection.designId !== currentDesignId ||
+        !files.some((file) => file.path === fileSelection.path))
+    ) {
+      setFileSelection(null);
     }
-  }, [defaultPath, files, selectedPath]);
+  }, [currentDesignId, files, fileSelection]);
 
   useEffect(() => {
     if (expandedDesignRef.current === currentDesignId) return;
@@ -2040,7 +2058,7 @@ export function FilesTabView() {
         ) : null}
         <button
           type="button"
-          onClick={() => setSelectedPath(f.path)}
+          onClick={() => setFileSelection({ designId: currentDesignId, path: f.path })}
           onDoubleClick={() => openFileTab(f.path)}
           title={f.path}
           aria-current={isActive ? 'page' : undefined}
