@@ -259,7 +259,7 @@ export const OVERLAY_SCRIPT = `(function() {
         var target = null;
         try { target = document.getElementById(id); } catch (_) {}
         if (target) {
-          // A workspace <base> turns even #fragment links into document navigation.
+          // A workspace base URL turns even #fragment links into document navigation.
           e.preventDefault();
           target.scrollIntoView();
           return;
