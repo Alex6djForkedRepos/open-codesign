@@ -9,6 +9,49 @@ import {
   resolveArtifactSourceReferencePath,
 } from './index';
 
+describe.each([
+  ['preview', buildPreviewDocument],
+  ['standalone', buildStandaloneDocument],
+] as const)('%s runtime fonts', (_name, build) => {
+  it.each([
+    'function App(){return <p>Hello</p>}',
+    'function App(){return <p style={{fontFamily:"system-ui, Arial, sans-serif"}}>Hello</p>}',
+    'function App(){return <p style={{fontFamily:"My-Fraunces, JetBrains Mono Custom"}}>Hello</p>}',
+  ])('does not contact font services for a source without supported families', (source) => {
+    const out = build(source, { path: 'App.jsx' });
+    expect(out).not.toContain('fonts.googleapis.com');
+    expect(out).not.toContain('fonts.gstatic.com');
+    expect(out).not.toContain('rel="preconnect"');
+    expect(out).toContain('body{font-family:system-ui,sans-serif;');
+  });
+
+  it.each([
+    ['Fraunces', 'Fraunces:ital,opsz,wght@'],
+    ['DM Serif Display', 'DM+Serif+Display:ital@'],
+    ['DM Sans', 'DM+Sans:opsz,wght@'],
+    ['JetBrains Mono', 'JetBrains+Mono:wght@'],
+  ])('loads only explicitly referenced %s', (family, query) => {
+    const out = build(`function App(){return <p style={{fontFamily:"${family}"}}>Hello</p>}`);
+    const link = out.match(/<link data-codesign-runtime-fonts[^>]+>/)?.[0];
+    expect(link).toContain(`family=${query}`);
+    expect(link?.match(/family=/g)).toHaveLength(1);
+    expect(out.match(/data-codesign-runtime-fonts/g)).toHaveLength(1);
+    expect(out.match(/rel="preconnect"/g)).toHaveLength(2);
+  });
+
+  it('deduplicates families from CSS, token values and Tailwind arbitrary font names', () => {
+    const source = `const headingFont = "Fraunces";
+function App(){return <><style>{".body{font-family:'DM Sans',sans-serif}"}</style><p style={{fontFamily:headingFont}}>Title</p><p className="font-['DM_Sans']">Body</p></>}`;
+    const out = build(source);
+    const link = out.match(/<link data-codesign-runtime-fonts[^>]+>/)?.[0];
+    expect(link?.match(/family=/g)).toHaveLength(2);
+    expect(link).toContain('family=Fraunces:');
+    expect(link).toContain('family=DM+Sans:');
+    expect(link).not.toContain('JetBrains');
+    expect(link).not.toContain('Serif');
+  });
+});
+
 describe('buildSrcdoc', () => {
   it('strips CSP meta tags', () => {
     const html =

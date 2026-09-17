@@ -244,6 +244,36 @@ function baseTag(baseHref: string | undefined): string {
   return baseHref ? `<base href="${escapeHtmlAttr(baseHref)}" />\n` : '';
 }
 
+function runtimeFontLinks(source: string): string {
+  const families = [
+    {
+      pattern: /(?<![\w-])Fraunces(?=\s*(?:['"`,;}\]]|$))/i,
+      query:
+        'Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400',
+    },
+    {
+      pattern: /(?<![\w-])DM[ _]+Serif[ _]+Display(?=\s*(?:['"`,;}\]]|$))/i,
+      query: 'DM+Serif+Display:ital@0;1',
+    },
+    {
+      pattern: /(?<![\w-])DM[ _]+Sans(?=\s*(?:['"`,;}\]]|$))/i,
+      query: 'DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500',
+    },
+    {
+      pattern: /(?<![\w-])JetBrains[ _]+Mono(?=\s*(?:['"`,;}\]]|$))/i,
+      query: 'JetBrains+Mono:wght@400;500',
+    },
+  ]
+    .filter(({ pattern }) => pattern.test(source))
+    .map(({ query }) => `family=${query}`);
+  if (families.length === 0) return '';
+  const url = `https://fonts.googleapis.com/css2?${families.join('&')}&display=swap`;
+  return `<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link data-codesign-runtime-fonts href="${escapeHtmlAttr(url)}" rel="stylesheet" />
+`;
+}
+
 function autoMountJsxIfNeeded(source: string): string {
   if (source.includes('ReactDOM.createRoot')) return source;
   const component = containsNamedDeclaration(source, 'App')
@@ -347,10 +377,7 @@ function wrapJsxAsSrcdoc(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-${baseTag(opts.baseHref)}<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;}body{font-family:'DM Sans',system-ui,sans-serif;background:var(--color-artifact-bg, #ffffff);}</style>
+${baseTag(opts.baseHref)}${runtimeFontLinks(jsx)}<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;}body{font-family:system-ui,sans-serif;background:var(--color-artifact-bg, #ffffff);}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -380,10 +407,7 @@ function wrapJsxAsStandaloneDocument(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-${baseTag(opts.baseHref)}<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300;1,9..144,400&family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;}body{font-family:'DM Sans',system-ui,sans-serif;background:var(--color-artifact-bg, #ffffff);}</style>
+${baseTag(opts.baseHref)}${runtimeFontLinks(jsx)}<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}html,body,#root{height:100%;}body{font-family:system-ui,sans-serif;background:var(--color-artifact-bg, #ffffff);}</style>
 </head>
 <body>
 <div id="root"></div>
