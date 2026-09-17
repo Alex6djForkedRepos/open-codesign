@@ -192,7 +192,7 @@ describe('conditional method contracts', () => {
         'preserve current user',
         'Matching names do not create a',
         'targeted marker-only tweaks',
-        '`components.primaryButton.description` is invalid',
+        'Unknown string properties are preserved with non-blocking warnings',
         'rather than hiding or bypassing the done gate',
       ],
     };
@@ -213,7 +213,7 @@ describe('conditional method contracts', () => {
       designMd.replace('fontSize: 16px', 'fontSize: 16'),
       designMd.replace('fontWeight: 400', 'fontWeight: "400"'),
       designMd.replace('padding: 12px', 'padding: 12'),
-      designMd.replace('primaryButton:', 'primaryButton:\n    description: Invalid metadata'),
+      designMd.replace('primaryButton:', 'primaryButton:\n    minHeight: { value: 44 }'),
     ]) {
       expect(validateDesignMd(invalid).some((finding) => finding.severity === 'error')).toBe(true);
     }

@@ -9,6 +9,86 @@ import {
 
 type ToolExecutionEndEvent = Extract<AgentEvent, { type: 'tool_execution_end' }>;
 
+describe('done diagnostic durability', () => {
+  it('bounds large previews without losing total counts on recompaction', () => {
+    const result = {
+      details: {
+        status: 'has_errors',
+        path: 'App.jsx',
+        summary: 's'.repeat(20_000),
+        errors: Array.from({ length: 100 }, () => ({
+          message: 'e'.repeat(20_000),
+          source: 'DESIGN.md',
+        })),
+        warnings: Array.from({ length: 100 }, () => ({
+          message: 'w'.repeat(20_000),
+          source: 'DESIGN.md',
+        })),
+      },
+    };
+    const compacted = compactToolResultForHistory('done', result);
+    expect(compacted).toMatchObject({ details: { errorCount: 100, warningCount: 100 } });
+    expect(JSON.stringify(compacted).length).toBeLessThan(16_000);
+    expect(compactToolResultForHistory('done', compacted)).toEqual(compacted);
+  });
+
+  it('preserves bounded errors and warnings across stream and repeated history compaction', () => {
+    const raw = {
+      content: [{ type: 'text', text: 'has_errors\nDESIGN.md: invalid typography' }],
+      details: {
+        status: 'has_errors',
+        path: 'App.jsx',
+        errors: Array.from({ length: 9 }, (_, index) => ({
+          source: 'DESIGN.md',
+          message: `error-${index}`,
+        })),
+        warnings: Array.from({ length: 8 }, (_, index) => ({
+          source: 'DESIGN.md',
+          message: `extension-${index}`,
+        })),
+      },
+    };
+    const streamed = summarizeToolResultForStream('done', raw);
+    const stored = compactToolResultForHistory('done', streamed);
+    expect(stored).toEqual(streamed);
+    expect(compactToolResultForHistory('done', stored)).toEqual(stored);
+    expect(stored).toMatchObject({
+      details: {
+        errorCount: 9,
+        warningCount: 8,
+        errorsPreview: Array.from({ length: 6 }, (_, index) => ({
+          source: 'DESIGN.md',
+          message: `error-${index}`,
+        })),
+        warningsPreview: Array.from({ length: 6 }, (_, index) => ({
+          source: 'DESIGN.md',
+          message: `extension-${index}`,
+        })),
+      },
+    });
+  });
+
+  it('keeps warnings visible without changing successful completion to failure', () => {
+    const result = {
+      content: [{ type: 'text', text: 'ok\nNon-blocking design metadata warnings' }],
+      details: {
+        status: 'ok',
+        path: 'App.jsx',
+        errors: [],
+        warnings: [{ source: 'DESIGN.md', message: 'minHeight preserved' }],
+      },
+    };
+    const stored = compactToolResultForHistory(
+      'done',
+      summarizeToolResultForStream('done', result),
+    );
+    expect(stored).toMatchObject({ details: { status: 'ok', errorCount: 0, warningCount: 1 } });
+    expect(
+      toolExecutionStatusForStream(toolEnd({ toolName: 'done', isError: false, result: stored })),
+    ).toEqual({ status: 'done' });
+  });
+});
+
 function toolEnd(overrides: Partial<ToolExecutionEndEvent>): ToolExecutionEndEvent {
   return {
     type: 'tool_execution_end',

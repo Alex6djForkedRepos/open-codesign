@@ -93,13 +93,18 @@ Components, Do's and Don'ts.
   Font feature/variation are strings.
 - Rounded values are dimension strings. Spacing accepts numbers or dimension
   strings. Prefer explicit units when recording visual distances.
-- Each component is an object whose allowed properties are `backgroundColor`,
+- Each component is an object whose portable properties are `backgroundColor`,
   `textColor`, `typography`, `rounded`, `padding`, `size`, `height`, `width`.
   Every property value is a string or string token reference, not an object
-  or number. `components.primaryButton.description` is invalid; put that
-  explanation under the Markdown `## Components` heading.
+  or number. Unknown string properties are preserved with non-blocking warnings,
+  as specified by Google's DESIGN.md alpha consumer rules. Keep intentional
+  extensions such as `minHeight`; do not rename it to `height`, which changes
+  meaning. Prefer `rounded` for corner-radius tokens when equivalent.
+  Put narrative descriptions under Markdown `## Components`, not in token fields.
 
-Do not transfer arbitrary CSS properties or prose metadata into frontmatter.
+These are the app's supported types, not a claim of full upstream conformance.
+The [pinned upstream specification](https://github.com/google-labs-code/design.md/blob/9bf8eae67128b6cc55ad9bf86665767deb4c11cd/docs/spec.md#consumer-behavior-for-unknown-content)
+allows component extensions; warnings about them do not require deleting valid data.
 Respond to actual validator errors rather than hiding or bypassing the done gate.
 
 ## Rules
