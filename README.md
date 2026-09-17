@@ -201,6 +201,10 @@ Credentials stay in `~/.config/open-codesign/config.toml` and the ChatGPT OAuth 
 
 Pick one of **fifteen built-in demos** — landing page, dashboard, pitch slide, pricing, mobile app, chat UI, event calendar, blog article, receipt/invoice, portfolio, settings panel, and more — or describe your own. A sandboxed prototype appears in seconds.
 
+For app requests, the agent is guided to build a **bounded, connected local prototype**, not a collection of isolated screens: a core journey, working navigation and back paths, shared records, and relevant validation, empty, and success states. For example: “Build Daymark, a polished mobile Todo app for planning a day.” Adding, editing, completing, and filtering tasks should update related views and counts together. Explicit single-screen requests, decks, documents, and narrow revisions keep their original scope.
+
+These are interactive prototypes, not production services. Data and service actions are simulated; backend setup, real authentication, and payments are not implied. State is in memory by default and may reset on reload. The agent previews the result and, when supported by the preview tool, exercises a bounded journey at the target viewport, repairs concrete failures, and distinguishes runtime checks from interactions actually tested.
+
 ---
 
 ## Bring your stack

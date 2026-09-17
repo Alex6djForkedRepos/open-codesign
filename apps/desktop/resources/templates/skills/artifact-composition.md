@@ -27,6 +27,7 @@ composition skeleton. The same visual style cannot serve every artifact type.
 | landing | convert a stranger quickly with one offer |
 | case_study | prove an outcome with evidence and sequence |
 | dashboard | orient, diagnose, and enable action |
+| app | complete a bounded task through connected screens and shared state |
 | pricing | make the buyer choose a tier confidently |
 | slide | communicate one idea on one rectangle |
 | email | scan well in a narrow inbox pane |
@@ -40,6 +41,7 @@ Sparse output is the common failure mode. Pick the correct section ladder:
 - Landing: hero, problem, solution/product proof, 3-5 differentiated features, social proof, pricing or CTA band, footer.
 - Case study: customer/result hero, customer profile, challenge, approach, before/after metrics, quote, implementation timeline, CTA.
 - Dashboard: app shell, global filters, KPI strip, primary chart, secondary chart/table, activity/detail panel, empty/loading state.
+- App: entry/task surface, supporting destinations, detail or edit state, completion feedback, recovery. Choose only what the core journey needs; no fixed screen count or decorative dashboard metrics.
 - Pricing: headline, 3+ tiers, plan comparison, risk reducer/FAQ, CTA.
 - Report/one-pager: cover, TL;DR, 3 findings, evidence modules, methodology, conclusion.
 - Slide: one conclusion, one supporting visual, one footer note; never cram a page into a slide.
@@ -50,12 +52,13 @@ Sparse output is the common failure mode. Pick the correct section ladder:
 - Put important metrics in large labeled blocks.
 - Render before/after, vs, 对比, or growth claims as paired comparisons, not floating deltas.
 - Use realistic numbers and dates; avoid 100%, 1,000, Jan 1 2020, and lorem-style filler.
-- Mock records should feel operational: each row/card should carry at least 5 useful fields such as owner, status, trend, date, segment, severity, or next action.
+- Mock records should carry the fields useful to the task, such as owner, status, date, or next action; do not pad simple apps to a field quota. Derive summaries from the same records used by the interactive views.
 
 ## Composition Rules
 
 - Marketing artifacts need rhythm: alternate dense sections with air, text-led sections with visual-led sections, and proof with promise.
 - Product tools need utility density: no oversized hero, no decorative feature grid, no landing-page copy above the work surface.
+- A scaffold provides source structure, not a ceiling on product behavior. Extend it into a cohesive local journey, while preserving explicitly single-page, slide, document, and narrow revision scope.
 - Case studies need credibility: include who the customer is, what changed, how long it took, and what tradeoff was solved.
 - Use `TWEAK_DEFAULTS` for 2-6 axes a user would actually tune: accent, density, radius, motion, chart mode, or surface contrast.
 - If multiple screens are implied, update or create `DESIGN.md` so later screens inherit tokens, component names, and layout rules.

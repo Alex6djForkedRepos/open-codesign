@@ -11,6 +11,7 @@ dependencies: [artifact-composition, responsive-layout, accessibility-states]
 validationHints:
   - shell has persistent navigation plus a clear active destination
   - content area includes filters data actions and non-happy states
+  - primary journey connects screens through shared data and working back navigation
 trigger:
   providers: ['*']
   scope: system
@@ -41,11 +42,25 @@ tool, dashboard, admin console, CRM, or operational product.
 - Mobile/tablet shells should collapse navigation into a drawer or top menu,
   while preserving the current page title and primary action.
 
+## Connected Journeys
+
+- For an app request, map the primary task and only its necessary supporting
+  screens; an explicitly single-screen brief stays single-screen.
+- Keep domain records at the app root, with stable IDs and derived counts,
+  filters, and details. Pass data/actions to readable screen components rather
+  than seeding independent copies of the same records on each screen.
+- Wire destinations, selected records, and back paths. Returning from a detail
+  or edit view must retain changes and the relevant list/filter context.
+- Create, edit, complete, and filter where relevant to the task; dependent
+  views must visibly agree. A toast alone cannot replace a data mutation.
+- Omit unnecessary destinations instead of filling the shell with dead nav.
+
 ## Work Area Density
 
 Operational shells should include enough real structure:
 
-- KPI or status strip with units and trend.
+- KPI or status strip with units and trend when useful to the task, not to
+  fill space; derive summaries from the displayed records.
 - Filters/search/sort where records are shown.
 - At least one chart, table, list, kanban, timeline, or inspector.
 - Real rows/cards with owner, status, date, amount, severity, or next action.

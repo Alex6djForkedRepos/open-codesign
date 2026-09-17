@@ -42,6 +42,11 @@ Use semantic elements first:
 - For tabs, segmented controls, drawers, and accordions, show selected/open
   state using shape or weight, not color alone.
 - Do not rely on hover for core information.
+- Modal dialogs need an accessible name, initial focus, contained keyboard
+  focus, Escape/close dismissal, and focus restoration to the opener. Prefer
+  native `<dialog>` with `showModal()` where supported.
+- On screen changes, keep a meaningful heading and move focus deliberately
+  when needed; do not leave focus on removed content.
 
 ## States
 
@@ -52,6 +57,12 @@ Operational surfaces need non-happy paths:
 - Error: plain-language cause plus retry/recovery action.
 - Disabled: explain the requirement or next step.
 - Success: visible confirmation that does not block continued work.
+
+Form errors must identify the field, explain the fix, and preserve entered
+values. Keep labels associated with inputs and expose validation/status
+messages accessibly. Make empty states reachable through real data or filters,
+not a disconnected showcase. Simulated loading, network, auth, or payment
+states must be labelled as demos, not presented as completed real operations.
 
 ## Visual Access
 

@@ -7,10 +7,11 @@ description: >
   layout, or any prototype intended to be viewed on a phone (375px viewport).
   Enforces 44pt touch targets, proper status bar height, and safe area insets.
 aliases: [mobile, iphone, ios, phone, 手机, 移动端]
-dependencies: []
+dependencies: [artifact-composition, accessibility-states]
 validationHints:
   - touch targets are at least 44px
   - screen respects mobile width and safe areas without fake device chrome unless requested
+  - app journeys preserve shared state across tabs detail views and back navigation
 trigger:
   providers: ['*']
   scope: system
@@ -47,7 +48,7 @@ Every interactive element must have a minimum tap target of **44×44px**. This i
 ```
 
 ### Status Bar
-Reserve **44–50px** at the top for the status bar (notch phones: 44px safe area + 20px bar = 59px). Use `padding-top: env(safe-area-inset-top, 44px)` in real implementations. In static mocks, show a simple status bar row with time (e.g. "9:41") on the left and battery/signal icons on the right.
+Respect the host-provided status bar; do not add a duplicate bar or inset. For an explicitly requested standalone device frame, reserve its status-bar space once and use safe-area insets where supported.
 
 ### Safe Area Insets
 Bottom: reserve **34px** for the home indicator on notched iPhones. Use `padding-bottom: env(safe-area-inset-bottom, 34px)` on fixed bottom bars. Fixed bottom navigation must never overlap the home indicator.
@@ -64,7 +65,7 @@ Never use type smaller than 12px on mobile — it fails WCAG SC 1.4.4 at normal 
 ### Interaction Patterns
 - No hover-only states. Mobile has no hover. Use `:active` for press feedback.
 - Swipe gestures should have visual affordances (drag handles, chevrons).
-- Bottom sheets and modals should be dismissible by swipe-down or background tap.
+- Bottom sheets and modals need a visible close/cancel action and keyboard dismissal; swipe-down or background tap may supplement these.
 - Avoid right-click / long-press as the only way to access features.
 
 ### Spacing System
@@ -72,3 +73,15 @@ Use an 8px base grid. Standard padding: 16px (screen edges), 12px (card insets),
 
 ### Navigation
 Bottom tab bar: 49–56px tall, 3–5 items max. Top navigation bar: 44–56px tall. Avoid hamburger menus — they hide navigation and reduce discoverability on mobile.
+
+For an app rather than a single-screen request, connect the primary task,
+supporting tabs, detail/edit surfaces, and back actions through shared app-root
+state. Preserve selection and list context on return. Use only destinations
+needed by the brief, not a mandatory tab or screen count. For a Todo app,
+adding/editing/completing a task should update its detail, filtered lists, and
+counts together; an empty filter needs a useful recovery action.
+
+Preview at the intended phone viewport, including the core journey and its
+changed state. Check that bottom navigation does not cover content or form
+actions, and that dialogs remain usable on a short screen. Do not claim
+cross-preview persistence; in-memory changes may reset on reload.
