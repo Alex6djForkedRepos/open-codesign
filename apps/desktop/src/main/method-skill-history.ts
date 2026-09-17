@@ -98,6 +98,10 @@ export const METHOD_SKILL_HISTORY = {
   ],
   'design-system-baton.md': [
     [
+      'ac00bb9e0ed9e37b265419533ddb6f0cdde556e66016ef56ff4010204deefacf',
+      '8fda16db90d26afb1938c0403fbbadb7d25f199c',
+    ],
+    [
       '2b7af06c6edb35a7624a08eb1a13d6c5993e5ea375b8eb889792fce93ecae126',
       'a416a80e8b6d3f190b54c2490aabee6d9b3a41e6',
     ],
