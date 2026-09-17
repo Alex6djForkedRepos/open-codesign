@@ -288,6 +288,7 @@ Contract tests check loaded instructions, supported source examples, preference 
 - **Phone / tablet / desktop preview** — true responsive frames, switch with one click
 - **Bounded interaction self-checks** — `preview` can exercise up to 16 declarative steps and report the final screen and per-step failures. For native single-selection dropdowns, use `{"action":"select","selector":"#category","value":"work"}`, then assert the control's exact `value` and linked summary text. Selectors must uniquely identify a visible control; disabled selects/fieldsets/options/optgroups, multiple selects, and missing or duplicate option values are rejected. Values are capped at 2,000 characters; the existing 2-second step and 20-second interaction budgets apply. This does not verify untested routes or persistence between preview calls.
 - **Files panel** — inspect multi-file artifacts (HTML, CSS, JS) before export
+- **Collapsible chat** — fold the conversation into a narrow restore rail without resetting drafts, active generation, the previous panel width, or preview state.
 - **Instant design switching** — the last five designs keep their preview iframes alive, so Hub ↔ Workspace and sidebar navigation stay zero-delay
 - **Connection diagnostic panel** — one-click test for any provider, with actionable errors
 - **Per-generation token counter** — see exactly how many tokens each run cost in the sidebar

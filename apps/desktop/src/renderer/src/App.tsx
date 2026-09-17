@@ -1,5 +1,6 @@
 import { useT } from '@open-codesign/i18n';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { ChatSidebarFrame } from './components/ChatSidebarFrame';
 import { CommentsPanel } from './components/comment/CommentsPanel';
 import { DeleteDesignDialog } from './components/DeleteDesignDialog';
 import { DesignsView } from './components/DesignsView';
@@ -48,7 +49,8 @@ export function App() {
   const requestRenameDesign = useCodesignStore((s) => s.requestRenameDesign);
   const interactionMode = useCodesignStore((s) => s.interactionMode);
   const setInteractionMode = useCodesignStore((s) => s.setInteractionMode);
-  const _sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
+  const sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useCodesignStore((s) => s.setSidebarCollapsed);
   const previewFullscreen = useCodesignStore((s) => s.previewFullscreen);
   const setPreviewFullscreen = useCodesignStore((s) => s.setPreviewFullscreen);
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
@@ -138,9 +140,13 @@ export function App() {
   }, [loadConfig, loadDesigns, switchDesign, syncGenerationStatus]);
 
   const ready = configLoaded && config?.hasKey;
-  const prefillComposer = useCallback((text: string) => {
-    setPrefillPrompt((prev) => ({ id: (prev?.id ?? 0) + 1, text }));
-  }, []);
+  const prefillComposer = useCallback(
+    (text: string) => {
+      setSidebarCollapsed(false);
+      setPrefillPrompt((prev) => ({ id: (prev?.id ?? 0) + 1, text }));
+    },
+    [setSidebarCollapsed],
+  );
 
   const bindings = useMemo(
     () => [
@@ -252,20 +258,15 @@ export function App() {
           >
             <div className="flex-1 min-h-0 min-w-0 overflow-hidden flex relative">
               {isResizing && <div className="absolute inset-0 z-20 cursor-col-resize" />}
-              <div
-                hidden={previewFullscreen}
-                className="relative shrink-0"
-                style={{ width: sidebarWidth }}
+              <ChatSidebarFrame
+                collapsed={sidebarCollapsed}
+                fullscreen={previewFullscreen}
+                width={sidebarWidth}
+                onCollapsedChange={setSidebarCollapsed}
+                onResizeStart={onResizeStart}
               >
                 <Sidebar prefillPrompt={prefillPrompt} />
-                <div
-                  role="separator"
-                  aria-orientation="vertical"
-                  onMouseDown={onResizeStart}
-                  className="absolute top-0 right-0 w-[5px] h-full cursor-col-resize z-10 hover:bg-[var(--color-accent)]/15 active:bg-[var(--color-accent)]/25 transition-colors duration-100"
-                  style={{ transform: 'translateX(50%)' }}
-                />
-              </div>
+              </ChatSidebarFrame>
               <main className="flex flex-col min-h-0 flex-1 min-w-0">
                 <Suspense fallback={null}>
                   <PreviewPane onPickStarter={prefillComposer} />

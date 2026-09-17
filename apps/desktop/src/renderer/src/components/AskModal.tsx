@@ -174,6 +174,8 @@ export function answerValueForImportedFiles(input: {
 export function AskModal() {
   const t = useT();
   const importFilesToWorkspace = useCodesignStore((s) => s.importFilesToWorkspace);
+  const setSidebarCollapsed = useCodesignStore((s) => s.setSidebarCollapsed);
+  const setPreviewFullscreen = useCodesignStore((s) => s.setPreviewFullscreen);
   const [askQueue, setAskQueue] = useState<AskQueueState>({ active: null, queue: [] });
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const panelRef = useRef<HTMLElement>(null);
@@ -205,8 +207,13 @@ export function AskModal() {
 
   useEffect(() => {
     if (!pending) return;
-    panelRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  }, [pending]);
+    setSidebarCollapsed(false);
+    setPreviewFullscreen(false);
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pending, setSidebarCollapsed, setPreviewFullscreen]);
 
   const resolve = useCallback((requestId: string, result: AskResult) => {
     void window.codesign?.ask?.resolve?.(requestId, result);
@@ -221,7 +228,15 @@ export function AskModal() {
   useEffect(() => {
     if (!pending) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') cancel();
+      if (
+        e.key === 'Escape' &&
+        !e.defaultPrevented &&
+        !e.isComposing &&
+        e.keyCode !== 229 &&
+        panelRef.current?.getClientRects().length
+      ) {
+        cancel();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
