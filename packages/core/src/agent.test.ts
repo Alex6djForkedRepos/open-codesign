@@ -1792,7 +1792,7 @@ describe('generateViaAgent()', () => {
     expect(sys).toContain('write a small, styled, runnable slice');
     expect(sys).toContain('before implementing secondary screens');
     expect(sys).toContain('An early slice is a milestone');
-    expect(sys).toContain('rather than narrating each tool call');
+    expect(sys).toContain('not each tool call');
     expect(sys).toContain('`str_replace`, or `insert`');
     expect(sys).toContain('do not emit `<artifact>`');
     expect(sys).toContain('design source to `App.jsx`');

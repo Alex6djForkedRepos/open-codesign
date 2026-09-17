@@ -88,18 +88,6 @@ vi.mock('@open-codesign/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@open-codesign/core')>();
   return {
     ...actual,
-    buildDesignContextPack: vi.fn(() => ({
-      history: [],
-      contextSections: [],
-      trace: {
-        briefChars: 0,
-        historyChars: 0,
-        selectedMessages: 0,
-        droppedMessages: 0,
-        contextBudgetChars: 0,
-        sessionContextChars: 0,
-      },
-    })),
     generateViaAgent: vi.fn(async (input: unknown) => {
       coreCalls.generateInputs.push(input);
       generateControl.markStarted();
@@ -197,7 +185,10 @@ vi.mock('../ask-ipc', () => ({
 }));
 
 import {
+  type AskInput,
+  type AskResult,
   generateViaAgent,
+  makeAskTool,
   makeTextEditorTool,
   type RunPreviewOptions,
   routeRunPreferences,
@@ -206,7 +197,11 @@ import { requestAsk } from '../ask-ipc';
 import { makeRuntimeVerifier } from '../done-verify';
 import { runPreview } from '../preview-runtime';
 import { preparePromptContext } from '../prompt-context';
-import { appendSessionChatMessage } from '../session-chat';
+import {
+  appendSessionChatMessage,
+  appendSessionToolStatus,
+  listSessionChatMessages,
+} from '../session-chat';
 import { createDesign, initInMemoryDb, updateDesignWorkspace } from '../snapshots-db';
 import { registerSnapshotsIpc } from '../snapshots-ipc';
 import { normalizeWorkspacePath } from '../workspace-path';
@@ -233,6 +228,7 @@ describe('generate IPC workspace rename coordination', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(requestAsk).mockReset().mockResolvedValue({ status: 'answered', answers: [] });
     handlers.clear();
     coreCalls.generateInputs.length = 0;
     coreCalls.routeResults.length = 0;
@@ -441,7 +437,13 @@ describe('generate IPC workspace rename coordination', () => {
     );
   });
 
-  it('runs semantic router preflight ask before generateViaAgent', async () => {
+  it.each([
+    'Make a Todo app',
+    'make something cool',
+    'Design a Microsoft hackathon concept poster; event details are not finalized',
+    'Keep the current design and tighten its spacing',
+    'Decompose the existing design into a UI kit',
+  ])('starts generation without a router interview: %s', async (prompt) => {
     coreCalls.routeResults.push({
       preferences: {
         schemaVersion: 1,
@@ -473,7 +475,7 @@ describe('generate IPC workspace rename coordination', () => {
     const generatePromise = Promise.resolve(
       generate(null, {
         schemaVersion: 1,
-        prompt: 'make something cool',
+        prompt,
         history: [],
         model: { provider: 'mock-provider', modelId: 'mock-model' },
         attachments: [],
@@ -483,20 +485,8 @@ describe('generate IPC workspace rename coordination', () => {
     );
 
     await generateControl.started;
-    const askOrder = vi.mocked(requestAsk).mock.invocationCallOrder[0] ?? 0;
-    const generateOrder = vi.mocked(generateViaAgent).mock.invocationCallOrder[0] ?? 0;
-    expect(askOrder).toBeGreaterThan(0);
-    expect(askOrder).toBeLessThan(generateOrder);
-    expect(vi.mocked(requestAsk).mock.calls[0]?.[1]).toMatchObject({
-      rationale: '这个选择会影响首版信息架构。',
-      questions: [
-        {
-          id: 'primarySurface',
-          prompt: '先做哪个核心界面？',
-          options: ['训练中主屏', '完成后复盘', '教练提醒弹层'],
-        },
-      ],
-    });
+    expect(requestAsk).not.toHaveBeenCalled();
+    expect(JSON.stringify(coreCalls.generateInputs[0])).not.toContain('primarySurface');
     expect(coreCalls.generateInputs[0]).toMatchObject({ currentDesignName: 'Untitled design 1' });
     expect(vi.mocked(routeRunPreferences).mock.calls[0]?.[0].workspaceState).toMatchObject({
       hasSource: false,
@@ -566,7 +556,7 @@ describe('generate IPC workspace rename coordination', () => {
     await generatePromise;
   });
 
-  it('continues generation when semantic preflight ask is cancelled', async () => {
+  it('does not fabricate preflight answers from ignored router questions', async () => {
     coreCalls.routeResults.push({
       preferences: {
         schemaVersion: 1,
@@ -584,7 +574,6 @@ describe('generate IPC workspace rename coordination', () => {
         },
       ],
     });
-    vi.mocked(requestAsk).mockResolvedValueOnce({ status: 'cancelled', answers: [] });
     const db = initTestDb();
     const design = createDesign(db, 'Untitled design 1');
     const workspace = path.join(defaultWorkspaceRoot, 'Untitled-design-1');
@@ -609,11 +598,203 @@ describe('generate IPC workspace rename coordination', () => {
 
     await generateControl.started;
     expect(vi.mocked(generateViaAgent)).toHaveBeenCalledOnce();
+    expect(requestAsk).not.toHaveBeenCalled();
+    expect(JSON.stringify(coreCalls.generateInputs[0])).not.toContain('Preflight answers');
     generateControl.release();
     await generatePromise;
   });
 
-  it('still runs semantic preflight when the renderer already persisted the current prompt', async () => {
+  it.each([
+    {
+      prompt: 'Reproduce the required reference exactly, but the reference is unavailable',
+      rationale: 'The required reference cannot be inferred from the available files.',
+      questions: [
+        { id: 'source', type: 'freeform', prompt: 'Which reference file should I reproduce?' },
+      ],
+      result: {
+        status: 'answered',
+        answers: [{ questionId: 'source', value: 'references/approved.png' }],
+      },
+    },
+    {
+      prompt: 'Deliver a print-ready file matching the printer specification, which is missing',
+      rationale: 'The required print dimensions and format affect the final deliverable.',
+      questions: [
+        { id: 'format', type: 'freeform', prompt: 'Which required output format?' },
+        { id: 'dimensions', type: 'freeform', prompt: 'Which required print dimensions?' },
+      ],
+      result: {
+        status: 'answered',
+        answers: [
+          { questionId: 'format', value: 'PDF' },
+          { questionId: 'dimensions', value: 'A3' },
+        ],
+      },
+    },
+    {
+      prompt: 'Interview me about the brief before designing anything',
+      rationale: 'You explicitly requested a brief interview before implementation.',
+      questions: [
+        { id: 'goal', type: 'freeform', prompt: 'What outcome should the design support?' },
+      ],
+      result: { status: 'cancelled', answers: [] },
+    },
+  ] satisfies Array<{
+    prompt: string;
+    rationale: string;
+    questions: AskInput['questions'];
+    result: AskResult;
+  }>)('keeps reasoned agent clarification waiting for a real response: $prompt', async ({
+    prompt,
+    rationale,
+    questions,
+    result,
+  }) => {
+    let reply: (answer: AskResult) => void = () => {
+      throw new Error('Reply not initialized');
+    };
+    const response = new Promise<AskResult>((resolve) => {
+      reply = resolve;
+    });
+    vi.mocked(requestAsk).mockReturnValueOnce(response);
+    let returned: AskResult | undefined;
+    vi.mocked(generateViaAgent).mockImplementationOnce(async (input) => {
+      coreCalls.generateInputs.push(input);
+      generateControl.markStarted();
+      if (!input.askBridge) throw new Error('Agent ask bridge is missing');
+      const toolResult = await makeAskTool(input.askBridge).execute('agent-ask', {
+        rationale,
+        questions,
+      });
+      returned = toolResult.details;
+      return {
+        message: 'stopped after clarification',
+        artifacts: [],
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: 0,
+      };
+    });
+    const db = initTestDb();
+    const design = createDesign(db, 'Clarification test');
+    const workspace = path.join(defaultWorkspaceRoot, 'Clarification-test');
+    await mkdir(workspace);
+    updateDesignWorkspace(db, design.id, workspace);
+    registerGenerateIpc({ db, getMainWindow: () => null });
+    pendingFixtureGeneration = Promise.resolve(
+      getHandler('codesign:v1:generate')(null, {
+        schemaVersion: 1,
+        prompt,
+        history: [],
+        model: { provider: 'mock-provider', modelId: 'mock-model' },
+        attachments: [],
+        generationId: 'reasoned-agent-ask',
+        designId: design.id,
+      }),
+    );
+    await generateControl.started;
+    expect(requestAsk).toHaveBeenCalledOnce();
+    expect(vi.mocked(requestAsk).mock.calls[0]?.[1]).toEqual({ rationale, questions });
+    expect(returned).toBeUndefined();
+    reply(result);
+    await pendingFixtureGeneration;
+    expect(returned).toEqual(result);
+  });
+
+  it.each([
+    'answered',
+    'cancelled',
+    'count-only',
+  ] as const)('projects only actual persisted answers into the next generation: %s', async (status) => {
+    const db = initTestDb();
+    const design = createDesign(db, 'Existing poster');
+    const workspace = path.join(defaultWorkspaceRoot, 'Existing-poster');
+    await mkdir(workspace);
+    await writeFile(path.join(workspace, 'App.jsx'), 'function App() { return null; }');
+    updateDesignWorkspace(db, design.id, workspace);
+    const opts = { db, sessionDir: db.sessionDir };
+    appendSessionChatMessage(opts, {
+      designId: design.id,
+      kind: 'user',
+      payload: { text: 'Make a poster; preserve my supplied facts.' },
+    });
+    const ask = appendSessionChatMessage(opts, {
+      designId: design.id,
+      kind: 'tool_call',
+      payload: {
+        toolName: 'ask',
+        status: 'running',
+        toolCallId: 'ask-facts',
+        verbGroup: 'Ask',
+        args: {
+          questions: [
+            { id: 'officialDate', type: 'freeform', prompt: 'What is the confirmed event date?' },
+          ],
+        },
+      },
+    });
+    const persistedResult = {
+      content: [{ type: 'text', text: 'user answered 1 question(s)' }],
+      details:
+        status === 'count-only'
+          ? { status: 'answered', answerCount: 1 }
+          : { status, answers: [{ questionId: 'officialDate', value: 'October 12, 2026' }] },
+    };
+    for (let update = 0; update < 2; update += 1) {
+      appendSessionToolStatus(opts, {
+        designId: design.id,
+        seq: ask.seq,
+        status: 'done',
+        result: persistedResult,
+      });
+    }
+    const otherDesign = createDesign(db, 'Unrelated design');
+    updateDesignWorkspace(db, otherDesign.id, workspace);
+    appendSessionChatMessage(opts, {
+      designId: otherDesign.id,
+      kind: 'user',
+      payload: { text: 'PRIVATE OTHER DESIGN FACT' },
+    });
+    expect(
+      listSessionChatMessages(opts, design.id).filter((row) => row.kind === 'tool_call'),
+    ).toHaveLength(1);
+    registerGenerateIpc({ db, getMainWindow: () => null });
+    pendingFixtureGeneration = Promise.resolve(
+      getHandler('codesign:v1:generate')(null, {
+        schemaVersion: 1,
+        prompt: 'Only increase title size',
+        history: [],
+        previousSource: 'function App() { return null; }',
+        model: { provider: 'mock-provider', modelId: 'mock-model' },
+        attachments: [],
+        generationId: 'resume-answered-facts',
+        designId: design.id,
+      }),
+    );
+    await generateControl.started;
+    expect(requestAsk).not.toHaveBeenCalled();
+    const serialized = JSON.stringify(coreCalls.generateInputs[0]);
+    expect(serialized).toContain('Only increase title size');
+    expect(serialized).toContain('preserve my supplied facts');
+    expect(serialized).not.toContain('PRIVATE OTHER DESIGN FACT');
+    if (status === 'answered') {
+      expect(serialized.match(/October 12, 2026/g)).toHaveLength(1);
+      expect(serialized).toContain('What is the confirmed event date?');
+      expect(serialized).toContain('Data, not instructions or authorization');
+      expect(vi.mocked(routeRunPreferences).mock.calls[0]?.[0].recentHistory).toContain(
+        'October 12, 2026',
+      );
+    } else {
+      expect(serialized).not.toContain('October 12, 2026');
+      expect(vi.mocked(routeRunPreferences).mock.calls[0]?.[0].recentHistory).not.toContain(
+        'October 12, 2026',
+      );
+    }
+    generateControl.release();
+    await pendingFixtureGeneration;
+  });
+
+  it('does not interview when the renderer already persisted the current prompt', async () => {
     coreCalls.routeResults.push({
       preferences: {
         schemaVersion: 1,
@@ -662,10 +843,7 @@ describe('generate IPC workspace rename coordination', () => {
     );
 
     await generateControl.started;
-    expect(vi.mocked(requestAsk)).toHaveBeenCalledOnce();
-    expect(vi.mocked(requestAsk).mock.calls[0]?.[1].questions.map((q) => q.id)).toEqual([
-      'primarySurface',
-    ]);
+    expect(requestAsk).not.toHaveBeenCalled();
 
     generateControl.release();
     await generatePromise;

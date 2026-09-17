@@ -44,6 +44,12 @@ describe('outcome-first design prompt', () => {
       'scaffold({kind, destPath})',
       'Google-compatible frontmatter',
       'version: alpha',
+      'Act on reversible style, layout, and ordinary details',
+      'preview before optional refinement',
+      'Use available facts and prior answers',
+      'Honor explicit ask-first/interview requests',
+      'non-inferable facts or choices that block a materially correct result',
+      'Mark nonessential unknown concept details as pending',
       'Before authoring new frontmatter, load `skill("design-system-baton")`',
     ]) {
       expect(prompt, contract).toContain(contract);

@@ -2,14 +2,11 @@ import path_module from 'node:path';
 import {
   type AgentEvent,
   type AskInput,
-  applyRunPreferenceAnswers,
   buildApplyCommentUserPrompt,
   buildDesignContextPack,
-  buildRunProtocolPreflight,
   type CoreLogger,
   composeSystemPrompt,
   type DesignSessionBriefV1,
-  formatRunProtocolPreflightAnswers,
   type GenerateImageAssetRequest,
   type GenerateImageAssetResult,
   generateTitle,
@@ -107,6 +104,7 @@ export function shouldRunUserMemoryCandidateCapture(prefs: {
   return prefs.memoryEnabled === true && prefs.userMemoryAutoUpdate === true;
 }
 
+/** @deprecated Compatibility helper; generation no longer opens a router interview. */
 export function buildRunPreferenceAskInput(
   questions: AskInput['questions'],
   rationale?: string | undefined,
@@ -122,18 +120,8 @@ export function buildRunPreferenceAskInput(
 function recentHistoryForRunPreferenceRouter(
   chatRows: ReturnType<typeof listSessionChatMessages>,
 ): string {
-  return chatRows
-    .slice(-12)
-    .map((row) => {
-      if (row.kind !== 'user' && row.kind !== 'assistant_text') return null;
-      const text =
-        typeof (row.payload as { text?: unknown }).text === 'string'
-          ? (row.payload as { text: string }).text
-          : '';
-      return text.trim().length > 0 ? `[${row.kind}] ${text.trim().slice(0, 800)}` : null;
-    })
-    .filter((line): line is string => line !== null)
-    .join('\n');
+  const { history } = buildDesignContextPack({ chatRows, historyBudgetChars: 8_000 });
+  return history.map((message) => `[${message.role}] ${message.content}`).join('\n');
 }
 
 function chatRowText(row: ReturnType<typeof listSessionChatMessages>[number]): string {
@@ -163,13 +151,6 @@ export function dropCurrentPromptEchoFromChatRows(
   const last = chatRows.at(-1);
   if (last === undefined || !isCurrentPromptEcho(last, currentPrompt)) return chatRows;
   return chatRows.slice(0, -1);
-}
-
-function sendPreflightAskEvent(
-  getMainWindow: () => ElectronBrowserWindow | null,
-  event: AgentStreamEvent,
-): void {
-  getMainWindow()?.webContents.send('agent:event:v1', event satisfies AgentStreamEvent);
 }
 
 function designMdSummaryForMemory(
@@ -954,105 +935,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 logger: coreLogger,
               }),
             );
-            let runPreferences = routedPreferences.preferences;
-            const runProtocolPreflight = buildRunProtocolPreflight({
-              prompt: payload.prompt,
-              historyCount: chatRows.filter((row) => row.kind === 'user').length,
-              workspaceState: { hasSource: Boolean(payload.previousSource?.trim()) },
-              runPreferences,
-              routerQuestions: routedPreferences.needsClarification
-                ? routedPreferences.clarificationQuestions
-                : undefined,
-              attachmentCount: promptContext.attachments.length,
-              hasReferenceUrl: promptContext.referenceUrl !== null,
-              hasDesignSystem:
-                promptContext.designSystem !== null ||
-                Boolean(promptContext.projectContext.designMd?.trim()),
-            });
-            let preflightAnswers: Array<{
-              questionId: string;
-              value: string | number | string[] | null;
-            }> = [];
-            if (runProtocolPreflight.requiresClarification) {
-              const askInput = buildRunPreferenceAskInput(
-                runProtocolPreflight.clarificationQuestions,
-                routedPreferences.clarificationRationale,
-              );
-              const toolCallId = `host-preflight-ask-${id}`;
-              const askStartedAt = Date.now();
-              sendPreflightAskEvent(getMainWindow, {
-                designId,
-                generationId: id,
-                type: 'turn_start',
-              });
-              logIpc.info('agent.tool_start', {
-                generationId: id,
-                tool: 'ask',
-                source: 'preflight',
-              });
-              sendPreflightAskEvent(getMainWindow, {
-                designId,
-                generationId: id,
-                type: 'tool_call_start',
-                toolName: 'ask',
-                toolCallId,
-                args: { questions: askInput.questions, rationale: askInput.rationale },
-                verbGroup: 'Clarifying',
-              });
-              try {
-                const askResult = await requestAsk(id, askInput, () => getMainWindow());
-                preflightAnswers = askResult.status === 'answered' ? askResult.answers : [];
-                runPreferences = applyRunPreferenceAnswers(runPreferences, preflightAnswers);
-                logIpc.info('agent.tool_end', {
-                  generationId: id,
-                  tool: 'ask',
-                  source: 'preflight',
-                  status: 'done',
-                  answers: preflightAnswers.length,
-                });
-                sendPreflightAskEvent(getMainWindow, {
-                  designId,
-                  generationId: id,
-                  type: 'tool_call_result',
-                  toolName: 'ask',
-                  toolCallId,
-                  durationMs: Date.now() - askStartedAt,
-                  status: 'done',
-                  result: {
-                    content: [
-                      {
-                        type: 'text',
-                        text:
-                          askResult.status === 'answered'
-                            ? `user answered ${preflightAnswers.length} question(s)`
-                            : 'user cancelled',
-                      },
-                    ],
-                    details: { status: askResult.status, answerCount: preflightAnswers.length },
-                  },
-                });
-              } catch (err) {
-                const message = err instanceof Error ? err.message : String(err);
-                logIpc.warn('agent.tool_end', {
-                  generationId: id,
-                  tool: 'ask',
-                  source: 'preflight',
-                  status: 'error',
-                  message,
-                });
-                sendPreflightAskEvent(getMainWindow, {
-                  designId,
-                  generationId: id,
-                  type: 'tool_call_result',
-                  toolName: 'ask',
-                  toolCallId,
-                  durationMs: Date.now() - askStartedAt,
-                  status: 'error',
-                  message,
-                });
-                throw err;
-              }
-            }
+            const runPreferences = routedPreferences.preferences;
             if (runPreferenceStoreOptions !== null) {
               appendSessionRunPreferences(runPreferenceStoreOptions, designId, runPreferences);
             }
@@ -1087,10 +970,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                   attachments: promptContext.attachments,
                   referenceUrl: promptContext.referenceUrl,
                   designSystem: promptContext.designSystem ?? null,
-                  sessionContext: [
-                    ...contextPack.contextSections,
-                    ...formatRunProtocolPreflightAnswers(preflightAnswers),
-                  ],
+                  sessionContext: contextPack.contextSections,
                   ...(memoryContext !== undefined ? { memoryContext: memoryContext.sections } : {}),
                   projectContext: promptContext.projectContext,
                   currentDesignName,

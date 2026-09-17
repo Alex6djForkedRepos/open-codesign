@@ -196,10 +196,10 @@ describe('composeSystemPrompt()', () => {
   it('create mode keeps design-quality guardrails in the compact prompt', () => {
     const prompt = composeSystemPrompt({ mode: 'create' });
     for (const guardrail of [
-      'primary job, deliverable, and completion condition',
+      'Cover requested journeys and their necessary connections',
       'typography, spacing, color, and content density',
       'No hotlinked stock or placeholder images',
-      'Use domain-specific, credible sample content',
+      'Use credible, labelled sample content',
       'not font or palette blacklists',
       'not invented proof',
     ]) {
@@ -250,10 +250,13 @@ describe('composeSystemPrompt()', () => {
     expect(prompt).toContain('TWEAK_DEFAULTS');
   });
 
-  it('create mode asks before high-impact ambiguity and treats tweaks as optional', () => {
+  it('create mode asks only for blockers or requested interviews and keeps tweaks optional', () => {
     const prompt = composeSystemPrompt({ mode: 'create' });
-    expect(prompt).toContain('Ask only when uncertainty materially changes the result');
-    expect(prompt).toContain('missing style adjectives alone do not require a question');
+    expect(prompt).toContain(
+      'non-inferable facts or choices that block a materially correct result',
+    );
+    expect(prompt).toContain('Act on reversible style, layout, and ordinary details');
+    expect(prompt).toContain('Honor explicit ask-first/interview requests');
     expect(prompt).toContain('When controls are requested or useful');
     expect(prompt).toContain('Do not delay the first working slice');
     expect(prompt).toContain('Empty `{}` is valid');
@@ -379,10 +382,8 @@ describe('composeSystemPrompt()', () => {
 
   it('asks the agent to interleave concise progress notes with tool phases', () => {
     const p = composeSystemPrompt({ mode: 'create' });
-    expect(p).toContain(
-      'Share brief updates when the visible result, direction, or blocker changes',
-    );
-    expect(p).toContain('rather than narrating each tool call');
+    expect(p).toContain('Update on visible milestones or blockers');
+    expect(p).toContain('not each tool call');
     expect(p).not.toContain('under 18 words');
   });
 });

@@ -304,8 +304,16 @@ export function makeAskTool(askBridge: AskBridge): AgentTool<typeof AskInput, As
     description:
       'Render a structured questionnaire (1–25 questions, 5 types: text-options / ' +
       'svg-options / slider / file / freeform) to the user and wait for answers. ' +
-      'Use BEFORE implementing when the request is ambiguous or when aesthetic / ' +
-      'content direction is unclear, including optional work such as tweak controls. ' +
+      'Ask only for a genuinely blocking fact, unavailable required reference, required format, ' +
+      'or materially different outcome that cannot be reasonably inferred, or an explicit ' +
+      'ask-first / brief-interview request. Read available files and prior answers first. ' +
+      'Choose reversible style, layout, and ordinary details; build a preview before optional refinement, ' +
+      'including tweak controls. For concepts, label nonessential unknown event details as pending; ' +
+      'never invent official dates, sponsors, or legal facts. ' +
+      'Batch related critical questions with a concise rationale explaining why work cannot proceed. ' +
+      'Do not repeat answered questions. Cancelled, empty, or partial answers are not consent; ' +
+      'report remaining blockers rather than pretending they were resolved. ' +
+      'This tool does not replace permission gates or authorize paid/external/destructive actions. ' +
       "Returns `{status: 'answered', answers}` or " +
       "`{status: 'cancelled', answers: []}`.",
     parameters: AskInput,

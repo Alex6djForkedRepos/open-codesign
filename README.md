@@ -243,6 +243,10 @@ Already using Claude Code or Codex? API-key provider configs import in one click
 
 ## Built-in taste
 
+**Build first, clarify blockers.** Capability routing does not open a pre-generation questionnaire. The agent chooses reversible visual and layout details, notes material assumptions, and delivers a preview before optional refinement. It can still ask a compact batch for genuinely missing required facts or references, an output constraint that cannot be inferred, or your explicit request for a brief interview. Concept drafts may label nonessential event details as pending; official dates, sponsors, and legal claims must not be invented. Permission prompts remain separate and are not automatically approved.
+
+Answered `ask` results already stored in the current design's session are reused as labelled data within the existing history budget, without displacing selected conversation or the design brief. Cancelled, empty, malformed, unmatched, or count-only results are not treated as answers or consent. Oversized answer groups are omitted intact rather than misleadingly truncated; facts that older preflight events never stored cannot be reconstructed.
+
 Open CoDesign combines shared design guidance with **on-demand method skills** for composition, app navigation, mobile layouts, accessibility, charts, decks, and design-system handoff. Visual direction comes from the brief and references, not a fixed font or palette blacklist. Existing designs keep their language unless a redesign is requested.
 
 The core prompt defines scope, workspace/runtime boundaries, and completion evidence. Selected skills provide focused techniques and examples, including source-backed tweak declarations and a `DESIGN.md` example checked against the app's validator. Resource indexes are available up front; full method bodies load only when requested by the agent.

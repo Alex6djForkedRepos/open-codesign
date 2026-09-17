@@ -10,7 +10,7 @@
 
 ## Content and interaction
 
-- Use domain-specific, credible sample content. Label simulated records; do not invent evidence, testimonials, business results, or factual brand claims.
+- Use credible, labelled sample content. Mark nonessential unknown concept details as pending; never invent official facts, testimonials, results, or brand claims.
 - Implement the behavior promised by visible controls. Links need real sections, supported routes, or truthful destinations; omit unavailable actions or disable them with a reason. A generic toast is not a substitute for a record mutation.
 - Use semantic landmarks, a clear heading hierarchy, labelled inputs, accessible names, and visible keyboard focus. Provide meaningful image alternatives; decorative images use empty alt text.
 - Forms need actionable validation without losing input. Modal dialogs need a name, contained focus, keyboard dismissal, and focus restoration. Screen transitions must not strand focus on removed content.
