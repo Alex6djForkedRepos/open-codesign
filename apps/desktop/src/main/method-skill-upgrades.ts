@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import {
+  copyFile,
   link,
   lstat,
   mkdir,
@@ -45,6 +47,10 @@ function hash(bytes: Buffer): string {
 
 function hasCode(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && error.code === code;
+}
+
+function isUnsupportedLink(error: unknown): boolean {
+  return ['ENOTSUP', 'EOPNOTSUPP', 'EXDEV'].some((code) => hasCode(error, code));
 }
 
 async function info(file: string) {
@@ -354,7 +360,7 @@ async function replaceKnown(
     try {
       await link(stage, path.join(tx, 'probe.md'));
     } catch (error) {
-      if (!['ENOTSUP', 'EOPNOTSUPP', 'EXDEV'].some((code) => hasCode(error, code))) throw error;
+      if (!isUnsupportedLink(error)) throw error;
       await unlink(stage);
       await rmdir(tx);
       logger.warn('skill.upgrade.unsupported', {
@@ -412,7 +418,19 @@ async function installMissing(candidate: string, target: Buffer): Promise<boolea
     await writeExclusive(stage, target);
     if (!(await isUnlinkedPath(candidate)))
       throw new Error(`Installation path changed: ${candidate}`);
-    await link(stage, candidate);
+    try {
+      await link(stage, candidate);
+    } catch (error) {
+      if (!isUnsupportedLink(error)) throw error;
+      if (!(await isUnlinkedPath(candidate))) return false;
+      // Fresh files retain the old seeder's filesystem support; never replace an existing path.
+      await copyFile(stage, candidate, constants.COPYFILE_EXCL);
+      logger.info('skill.install.exclusive_copy', {
+        candidate,
+        reason: String(error),
+        status: 'installed-missing-file',
+      });
+    }
     return true;
   } catch (error) {
     if (hasCode(error, 'EEXIST')) return false;

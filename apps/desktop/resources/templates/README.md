@@ -60,6 +60,11 @@ Known hard-link preflight failures (`ENOTSUP`, `EOPNOTSUPP`, `EXDEV`) before any
 original is moved are reported as failed upgrades with preserved originals and
 an explicit failed count; startup can continue with those old methods. There is
 no unsafe overwrite fallback. A failed pending recovery still stops startup.
+Missing method files, including fresh installs, use `COPYFILE_EXCL` if publishing
+by hard link reports one of those known unsupported codes. This preserves the
+original seeder's filesystem compatibility without replacing a concurrent file.
+It is not an atomic-publication guarantee for fresh copies; copying errors remain
+visible. This fallback never applies to replacement or recovery of existing files.
 There is no hot reload, reset UI, or automatic update of private brand references,
 workspace `DESIGN.md`, scaffolds, frames or JSX snippets through this mechanism.
 

@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
+import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ensureUserTemplates } from './ensure-user-templates';
+import { METHOD_SKILL_HISTORY } from './method-skill-history';
 import { upgradeMethodSkills } from './method-skill-upgrades';
 
 const name = 'frontend-design-anti-slop.md';
@@ -11,6 +13,9 @@ const old = 'known original\n';
 const next = 'new bundled method\n';
 const sha = (text: string) => createHash('sha256').update(text).digest('hex');
 const hooks = vi.hoisted(() => ({
+  copyFile: undefined as
+    | undefined
+    | ((source: string, dest: string, mode?: number) => Promise<void>),
   open: undefined as undefined | ((file: string) => Promise<void>),
   link: undefined as undefined | ((source: string, dest: string) => Promise<void>),
   rename: undefined as undefined | ((source: string, dest: string) => Promise<void>),
@@ -34,6 +39,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
   return {
     ...actual,
+    copyFile: async (source: string, dest: string, mode?: number) => {
+      await hooks.copyFile?.(source, dest, mode);
+      return actual.copyFile(source, dest, mode);
+    },
     open: async (...args: Parameters<typeof actual.open>) => {
       await hooks.open?.(String(args[0]));
       return actual.open(...args);
@@ -58,6 +67,7 @@ let candidate: string;
 beforeEach(async () => {
   vi.clearAllMocks();
   hooks.link = undefined;
+  hooks.copyFile = undefined;
   hooks.open = undefined;
   hooks.rename = undefined;
   root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'codesign-method-upgrade-')));
@@ -71,6 +81,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   hooks.link = undefined;
+  hooks.copyFile = undefined;
   hooks.open = undefined;
   hooks.rename = undefined;
   await fs.rm(root, { recursive: true, force: true });
@@ -109,6 +120,109 @@ async function journal(
 }
 
 describe('method skill upgrades', () => {
+  it.each([
+    'ENOTSUP',
+    'EOPNOTSUPP',
+    'EXDEV',
+  ])('seeds all seven methods in a fresh root with exclusive copies when links report %s', async (code) => {
+    await fs.rmdir(path.dirname(candidate));
+    await fs.rmdir(dest);
+    for (const skill of Object.keys(METHOD_SKILL_HISTORY)) {
+      await fs.writeFile(path.join(source, 'skills', skill), `${skill}: bundled`);
+    }
+    hooks.link = async () => {
+      throw Object.assign(new Error('Links unavailable'), { code });
+    };
+    const copy = vi.fn();
+    hooks.copyFile = async (...args) => {
+      copy(...args);
+    };
+    expect(await ensureUserTemplates(user, source)).toMatchObject({
+      action: 'seeded',
+      methodSkills: { installed: 7, updated: 0, preserved: 0, failed: 0 },
+    });
+    expect(copy).toHaveBeenCalledTimes(7);
+    expect(copy.mock.calls.every((call) => call[2] === constants.COPYFILE_EXCL)).toBe(true);
+    expect((await fs.readdir(path.dirname(candidate))).sort()).toEqual(
+      Object.keys(METHOD_SKILL_HISTORY).sort(),
+    );
+    for (const skill of Object.keys(METHOD_SKILL_HISTORY)) {
+      expect(await fs.readFile(path.join(dest, 'skills', skill), 'utf8')).toBe(`${skill}: bundled`);
+    }
+    expect(log.info).toHaveBeenCalledWith(
+      'skill.install.exclusive_copy',
+      expect.objectContaining({ status: 'installed-missing-file' }),
+    );
+  });
+
+  it('preserves old methods while exclusively installing missing ones on an unsupported filesystem', async () => {
+    await fs.writeFile(candidate, old);
+    await fs.writeFile(path.join(source, 'skills', 'craft-polish.md'), 'new missing method');
+    hooks.link = async () => {
+      throw Object.assign(new Error('Links unavailable'), { code: 'ENOTSUP' });
+    };
+    expect(await ensureUserTemplates(user, source)).toMatchObject({
+      action: 'merged',
+      updatedFiles: 0,
+      methodSkills: { installed: 1, updated: 0, preserved: 1, failed: 1 },
+    });
+    expect(await fs.readFile(candidate, 'utf8')).toBe(old);
+    expect(await fs.readFile(path.join(dest, 'skills', 'craft-polish.md'), 'utf8')).toBe(
+      'new missing method',
+    );
+    expect(await transactions()).toEqual([]);
+  });
+
+  it('preserves a candidate created between unsupported-link failure and fallback copying', async () => {
+    hooks.link = async () => {
+      throw Object.assign(new Error('Links unavailable'), { code: 'ENOTSUP' });
+    };
+    hooks.copyFile = async (_from, to, mode) => {
+      expect(mode).toBe(constants.COPYFILE_EXCL);
+      await fs.writeFile(to, 'concurrent user content', { flag: 'wx' });
+    };
+    expect(await ensureUserTemplates(user, source)).toMatchObject({
+      methodSkills: { installed: 0, updated: 0, preserved: 1 },
+    });
+    expect(await fs.readFile(candidate, 'utf8')).toBe('concurrent user content');
+    expect(log.info).not.toHaveBeenCalledWith('skill.install.exclusive_copy', expect.anything());
+  });
+
+  it.each([
+    'EACCES',
+    'EPERM',
+    'EIO',
+  ])('keeps unexpected missing-file link error %s visible without fallback', async (code) => {
+    hooks.link = async () => {
+      throw Object.assign(new Error('Unexpected link error'), { code });
+    };
+    const copy = vi.fn();
+    hooks.copyFile = async (...args) => {
+      copy(...args);
+    };
+    await expect(ensureUserTemplates(user, source)).rejects.toThrow('Unexpected link error');
+    expect(copy).not.toHaveBeenCalled();
+    await expect(fs.stat(candidate)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(log.error).toHaveBeenCalledWith(
+      'skills.upgrade.failed',
+      expect.objectContaining({ dest }),
+    );
+  });
+
+  it('keeps fallback copy failures visible rather than claiming an installation', async () => {
+    hooks.link = async () => {
+      throw Object.assign(new Error('Links unavailable'), { code: 'ENOTSUP' });
+    };
+    hooks.copyFile = async () => {
+      throw Object.assign(new Error('Copy failed'), { code: 'EIO' });
+    };
+    await expect(ensureUserTemplates(user, source)).rejects.toThrow('Copy failed');
+    expect(log.error).toHaveBeenCalledWith(
+      'skills.upgrade.failed',
+      expect.objectContaining({ installed: 0, updated: 0 }),
+    );
+    expect(await fs.readdir(path.dirname(candidate))).toEqual([]);
+  });
   it('recovers a missing-skill installation interrupted after publication', async () => {
     const stage = path.join(
       path.dirname(candidate),
