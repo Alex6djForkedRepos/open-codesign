@@ -782,6 +782,8 @@
     "applyChange": "Aplicar cambio"
   },
   "commentBubble": {
+    "retryHint": "Tu borrador se conserva. Intenta guardarlo de nuevo.",
+    "keyboardHint": "Enter: nueva línea · Ctrl/⌘+Enter: añadir al chat",
     "title": "Comentar en",
     "close": "Cerrar burbuja de comentario",
     "placeholder": "Describe el cambio, o deja una nota para ti mismo…",

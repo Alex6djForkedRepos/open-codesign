@@ -846,6 +846,8 @@
     "applyChange": "应用修改"
   },
   "commentBubble": {
+    "retryHint": "草稿已保留，请重试保存。",
+    "keyboardHint": "Enter 换行 · Ctrl/⌘+Enter 加入聊天",
     "title": "批注元素",
     "close": "关闭批注气泡",
     "placeholder": "描述想要的改动，或留一条笔记给自己…",

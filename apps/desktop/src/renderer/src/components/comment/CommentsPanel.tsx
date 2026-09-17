@@ -82,7 +82,7 @@ export function CommentsPanel() {
         opacity: visible ? 1 : 0,
         transition: 'transform 200ms ease-out, opacity 200ms ease-out',
       }}
-      className="fixed top-[80px] right-[16px] z-40 w-[300px] flex flex-col rounded-[14px] border border-[var(--color-border-muted)] bg-[var(--color-surface-elevated)] shadow-[0_12px_40px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] max-h-[calc(100vh-120px)] overflow-hidden"
+      className="fixed top-[80px] right-[16px] z-40 w-[min(340px,calc(100vw-32px))] flex flex-col rounded-[var(--radius-xl)] border border-[var(--color-border-muted)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-elevated)] max-h-[calc(100dvh-96px)] overflow-hidden"
     >
       {/* Header */}
       <header className="flex items-center justify-between px-[16px] py-[12px] border-b border-[var(--color-border-muted)]">
@@ -101,14 +101,14 @@ export function CommentsPanel() {
           type="button"
           onClick={() => setInteractionMode('default')}
           aria-label={t('comments.panel.close')}
-          className="rounded-full p-[3px] text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)]"
+          className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
         >
           <X className="w-[14px] h-[14px]" aria-hidden />
         </button>
       </header>
 
       {/* List */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+      <div className="min-h-0 overflow-y-auto">
         {visibleComments.length === 0 ? (
           <p className="px-[16px] py-[24px] text-[12.5px] text-[var(--color-text-muted)] leading-[1.6] text-center">
             {t('comments.panel.empty')}
@@ -168,11 +168,11 @@ function CommentItem({
       : '#d4a017'; // warning yellow for notes
 
   return (
-    <li className="group relative">
+    <li className="flex items-start gap-[var(--space-1)] px-[var(--space-2)]">
       <button
         type="button"
         onClick={onOpen}
-        className="w-full flex items-start gap-[10px] px-[16px] py-[10px] text-left transition-colors hover:bg-[var(--color-surface-hover)]"
+        className="min-w-0 flex-1 flex items-start gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-2)] py-[var(--space-2)] text-left hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
       >
         {/* Index badge */}
         <span
@@ -189,7 +189,7 @@ function CommentItem({
         {/* Content — just the comment text, optionally striked when applied */}
         <div className="min-w-0 flex-1">
           <p
-            className={`text-[13px] leading-[1.4] truncate ${
+            className={`text-[var(--text-sm)] leading-[1.5] line-clamp-3 [overflow-wrap:anywhere] ${
               isApplied
                 ? 'text-[var(--color-text-muted)] line-through'
                 : 'text-[var(--color-text-primary)]'
@@ -197,12 +197,11 @@ function CommentItem({
           >
             {summary || t('comments.panel.untitled')}
           </p>
-          {/* Element tag shown subtle, only when hovered */}
           <p
-            className="mt-[2px] text-[10.5px] text-[var(--color-text-muted)] opacity-0 group-hover:opacity-100 transition-opacity duration-150 truncate"
+            className="mt-[2px] text-[var(--text-xs)] text-[var(--color-text-muted)] truncate"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {`<${comment.tag}>`}
+            {comment.sourcePath ? `${comment.sourcePath} · <${comment.tag}>` : `<${comment.tag}>`}
           </p>
         </div>
       </button>
@@ -214,7 +213,7 @@ function CommentItem({
           disabled={sendDisabled || queued}
           aria-label={queued ? t('comments.panel.addedToChat') : t('comments.panel.sendToChat')}
           title={queued ? t('comments.panel.addedToChat') : t('comments.panel.sendToChat')}
-          className="absolute right-[36px] top-[10px] rounded-md p-[4px] text-[var(--color-accent)] opacity-0 transition-opacity hover:bg-[var(--color-surface-active)] group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:pointer-events-none"
+          className="mt-[var(--space-2)] flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-accent)] hover:bg-[var(--color-surface-active)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-40"
         >
           <Send className="w-[13px] h-[13px]" />
         </button>
@@ -225,7 +224,7 @@ function CommentItem({
         type="button"
         onClick={onRemove}
         aria-label={t('comments.panel.delete')}
-        className="absolute right-[10px] top-[10px] rounded-md p-[4px] text-[var(--color-text-muted)] opacity-0 transition-opacity hover:bg-[var(--color-surface-active)] hover:text-[var(--color-error,#dc2626)] group-hover:opacity-100 focus:opacity-100"
+        className="mt-[var(--space-2)] flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-active)] hover:text-[var(--color-error)] focus-visible:outline-2 focus-visible:outline-[var(--color-accent)]"
       >
         <Trash2 className="w-[13px] h-[13px]" />
       </button>

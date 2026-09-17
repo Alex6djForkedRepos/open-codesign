@@ -846,6 +846,8 @@
     "applyChange": "Apply change"
   },
   "commentBubble": {
+    "retryHint": "Your draft is kept. Try saving again.",
+    "keyboardHint": "Enter: new line · Ctrl/⌘+Enter: add to chat",
     "title": "Comment on",
     "close": "Close comment bubble",
     "placeholder": "Describe the change, or leave a note for yourself…",

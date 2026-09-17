@@ -743,6 +743,8 @@
     "applyChange": "Aplicar mudança"
   },
   "commentBubble": {
+    "retryHint": "Seu rascunho foi mantido. Tente salvar novamente.",
+    "keyboardHint": "Enter: nova linha · Ctrl/⌘+Enter: adicionar ao chat",
     "title": "Comentar em",
     "close": "Fechar balão de comentário",
     "placeholder": "Descreva a mudança ou deixe uma nota para você…",

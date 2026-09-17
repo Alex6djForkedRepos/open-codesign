@@ -358,7 +358,7 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
   // or the active iframe element re-mounts.
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
-  // Unsent bubble drafts, keyed by bubbleKey (edit:<id> | new:<selector>).
+  // Unsent drafts are keyed by comment id or design + source path + selector.
   // Lives across bubble remounts so switching to another chip / element and
   // coming back restores the text the user had typed. Cleared on successful
   // submit; explicit close (Esc / ×) deliberately preserves.
@@ -730,8 +730,9 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
               const stashed = bubbleDraftsRef.current.get(bubbleKey);
               const initialText = stashed ?? commentBubble.initialText;
               const clearPinAndClose = () => {
-                postClearPinToPreviewWindow(iframeRef.current?.contentWindow, pushIframeError);
+                postClearPinToPreviewWindow(bubbleFrame?.contentWindow, pushIframeError);
                 closeCommentBubble();
+                if (bubbleFrame?.isConnected) bubbleFrame.focus();
               };
               const persistComment = async (text: string) => {
                 const trimmed = text.trim();
@@ -753,7 +754,12 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
                     : {}),
                   ...(commentBubble.sourcePath ? { sourcePath: commentBubble.sourcePath } : {}),
                 });
-                if (useCodesignStore.getState().currentDesignId !== currentDesignId) return null;
+                const current = useCodesignStore.getState();
+                if (
+                  current.currentDesignId !== currentDesignId ||
+                  current.commentBubble !== commentBubble
+                )
+                  return null;
                 if (!row) return null;
                 bubbleDraftsRef.current.delete(bubbleKey);
                 return { row };
@@ -771,18 +777,21 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
                     if (text.length === 0) bubbleDraftsRef.current.delete(bubbleKey);
                     else bubbleDraftsRef.current.set(bubbleKey, text);
                   }}
+                  onDismiss={clearPinAndClose}
                   onSaveAndClose={async (text: string) => {
                     const result = await persistComment(text);
-                    if (result === null) return;
+                    if (result === null) return false;
                     clearPinAndClose();
+                    return true;
                   }}
                   onSaveAndSend={async (text: string) => {
                     const result = await persistComment(text);
-                    if (result === null) return;
+                    if (result === null) return false;
                     clearPinAndClose();
                     if (result.row) {
                       queueCommentForPrompt(result.row.id);
                     }
+                    return true;
                   }}
                 />
               );
