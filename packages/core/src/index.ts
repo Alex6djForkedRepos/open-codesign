@@ -1,4 +1,8 @@
-import { completeWithRetry, type RetryReason } from '@open-codesign/providers';
+import {
+  completeWithRetry,
+  type RetryReason,
+  requiredReasoningDefault,
+} from '@open-codesign/providers';
 import type {
   Artifact,
   ChatMessage,
@@ -459,6 +463,8 @@ export function reasoningForModel(
   model: ModelRef,
   baseUrl?: string | undefined,
 ): ReasoningLevel | undefined {
+  const requiredDefault = requiredReasoningDefault(model.modelId);
+  if (requiredDefault !== undefined) return requiredDefault;
   // Proxy detection: when the provider id is 'anthropic' but baseUrl points
   // somewhere other than api.anthropic.com, we're talking to a Claude Code-
   // style proxy. Those commonly gate reasoning by plan and consumer-tier

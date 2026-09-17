@@ -1792,23 +1792,21 @@ export function WorkspaceFilePreview({
   );
 }
 
-export function FilesTabView({ activePath = null }: { activePath?: string | null }) {
+export function FilesTabView() {
   const t = useT();
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
   const designs = useCodesignStore((s) => s.designs);
   const openFileTab = useCodesignStore((s) => s.openCanvasFileTab);
-  const setActiveCanvasTab = useCodesignStore((s) => s.setActiveCanvasTab);
   const currentPreviewSource = useCodesignStore((s) => s.previewSource);
   const { files, tree: fileTree, loadDirectory } = useLazyDesignFileTree(currentDesignId);
 
   const defaultPath = useMemo(() => defaultWorkspacePreviewPath(files), [files]);
 
-  const [selectedPath, setSelectedPath] = useState<string | null>(activePath ?? defaultPath);
+  const [selectedPath, setSelectedPath] = useState<string | null>(defaultPath);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
   const [fileBrowserWidth, setFileBrowserWidth] = useState(initialFileBrowserWidth);
   const [isFileBrowserResizing, setIsFileBrowserResizing] = useState(false);
   const expandedDesignRef = useRef<string | null>(currentDesignId);
-  const isDedicatedFileTab = activePath !== null;
   const currentDesign = designs.find((d) => d.id === currentDesignId);
   const effectivePreviewMode = useMemo(
     () =>
@@ -1855,14 +1853,6 @@ export function FilesTabView({ activePath = null }: { activePath?: string | null
     }
     if (selectedPath) openFileTab(selectedPath);
   }, [connectedPreviewUrl, openFileTab, selectedPath, t, usesExternalPreview]);
-
-  const handleFileTreeFileClick = useCallback(
-    (path: string) => {
-      setSelectedPath(path);
-      if (isDedicatedFileTab) setActiveCanvasTab(0);
-    },
-    [isDedicatedFileTab, setActiveCanvasTab],
-  );
 
   const handleFileBrowserResizeStart = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -1965,14 +1955,10 @@ export function FilesTabView({ activePath = null }: { activePath?: string | null
   }
 
   useEffect(() => {
-    if (activePath) {
-      setSelectedPath(activePath);
-      return;
-    }
     if (!selectedPath || !files.find((f) => f.path === selectedPath)) {
       setSelectedPath(defaultPath);
     }
-  }, [activePath, defaultPath, files, selectedPath]);
+  }, [defaultPath, files, selectedPath]);
 
   useEffect(() => {
     if (expandedDesignRef.current === currentDesignId) return;
@@ -2054,7 +2040,7 @@ export function FilesTabView({ activePath = null }: { activePath?: string | null
         ) : null}
         <button
           type="button"
-          onClick={() => handleFileTreeFileClick(f.path)}
+          onClick={() => setSelectedPath(f.path)}
           onDoubleClick={() => openFileTab(f.path)}
           title={f.path}
           aria-current={isActive ? 'page' : undefined}

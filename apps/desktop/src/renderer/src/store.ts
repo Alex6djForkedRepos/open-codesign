@@ -129,7 +129,12 @@ export interface CodesignState {
   recentDesignIds: string[];
   generationByDesign: Record<
     string,
-    { generationId: string; stage: GenerationStage; startedAt?: number }
+    {
+      generationId: string;
+      stage: GenerationStage;
+      startedAt?: number;
+      awaitingResponse?: boolean;
+    }
   >;
   isGenerating: boolean;
   activeGenerationId: string | null;
@@ -282,7 +287,7 @@ export interface CodesignState {
   autoPolishFired: Set<string>;
   /** Fire the canned "deepen this design" follow-up prompt once per design,
    *  if the condition is met (first round succeeded, no prior polish). Call
-   *  from useAgentStream's agent_end handler. */
+   *  after a successful IPC response, or agent_end for rehydrated runs. */
   tryAutoPolish: (designId: string, locale: string) => void;
   /** Generation ids the user explicitly stopped. Late stream events for
    *  these ids are ignored so the renderer cannot flip back to "running". */

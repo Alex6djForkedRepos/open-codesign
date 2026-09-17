@@ -292,6 +292,11 @@ export function useAgentStream(): void {
       if (current) drainPendingTools(current, 'error');
       setStreamingAssistantText({ designId: event.designId, text: '' });
       inFlight.current.delete(event.generationId);
+      const s = useCodesignStore.getState();
+      const currentRun = s.generationByDesign[event.designId];
+      // The IPC rejection owns local-run diagnostics; consuming its identity
+      // here would make the subsequent error look like a stale response.
+      if (currentRun?.generationId === event.generationId && currentRun.awaitingResponse) return;
       void appendChatMessage({
         designId: event.designId,
         kind: 'error',
@@ -303,8 +308,6 @@ export function useAgentStream(): void {
       // Defensive: clear generation flags so the UI never gets stuck showing
       // "running" if the IPC promise that drives sendPrompt hangs. Only clear
       // when the error belongs to the design the store thinks is generating.
-      const s = useCodesignStore.getState();
-      const currentRun = s.generationByDesign[event.designId];
       if (currentRun?.generationId === event.generationId) {
         const generationByDesign = { ...s.generationByDesign };
         delete generationByDesign[event.designId];
@@ -334,13 +337,12 @@ export function useAgentStream(): void {
       });
       inFlight.current.delete(event.generationId);
       setStreamingAssistantText({ designId: event.designId, text: '' });
-      // Defensive: clear generation flags. The sendPrompt Promise resolution
-      // would normally clear them shortly after, but if the main-process IPC
-      // hangs for any reason the UI would be stuck in "running" forever.
-      // Mirror the happy-path terminal state here as a belt-and-suspenders.
+      // Rehydrated runs have no local IPC promise. Locally submitted runs must
+      // retain their identity until the response delivers usage, artifacts or
+      // an error: pi emits agent_end before either success or rejection.
       const s = useCodesignStore.getState();
       const currentRun = s.generationByDesign[event.designId];
-      if (currentRun?.generationId === event.generationId) {
+      if (currentRun?.generationId === event.generationId && !currentRun.awaitingResponse) {
         const generationByDesign = { ...s.generationByDesign };
         delete generationByDesign[event.designId];
         const activeForCurrent =
@@ -355,6 +357,7 @@ export function useAgentStream(): void {
             (s.currentDesignId === event.designId ? 'done' : s.generationStage),
         });
       }
+      if (currentRun?.awaitingResponse) return;
       // Fire the auto-polish follow-up exactly once per design. Delay so the
       // isGenerating flag and persisted assistant_text row have settled before
       // sendPrompt inspects them. The guard inside tryAutoPolish dedupes.

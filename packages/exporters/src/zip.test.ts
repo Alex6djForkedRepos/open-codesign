@@ -14,6 +14,10 @@ import { exportZip } from './zip';
 
 let tempDir = '';
 
+// These disk round-trips include the multi-megabyte standalone JSX runtime;
+// Windows file scanning can exceed Vitest's default five-second timeout.
+const JSX_ZIP_TIMEOUT_MS = 30_000;
+
 beforeAll(() => {
   tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'codesign-zip-test-')));
   mkdirSync(join(tempDir, 'assets'), { recursive: true });
@@ -60,49 +64,57 @@ describe('exportZip', () => {
     expect(result.bytes).toBeGreaterThan(50);
   });
 
-  it('writes JSX source as browser-openable index.html', async () => {
-    const dest = join(tempDir, 'jsx-bundle.zip');
-    await exportZip(
-      'function App() { return <main id="zip-jsx">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
-      dest,
-    );
+  it(
+    'writes JSX source as browser-openable index.html',
+    async () => {
+      const dest = join(tempDir, 'jsx-bundle.zip');
+      await exportZip(
+        'function App() { return <main id="zip-jsx">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+        dest,
+      );
 
-    const { Unzip } = await import('zip-lib');
-    const extractDir = join(tempDir, 'jsx-extracted');
-    const unzip = new Unzip();
-    await unzip.extract(dest, extractDir);
+      const { Unzip } = await import('zip-lib');
+      const extractDir = join(tempDir, 'jsx-extracted');
+      const unzip = new Unzip();
+      await unzip.extract(dest, extractDir);
 
-    const out = readFileSync(join(extractDir, 'index.html'), 'utf8');
-    expect(out).toContain('CODESIGN_STANDALONE_RUNTIME');
-    expect(out).toContain('zip-jsx');
-    expect(out).not.toContain('https://cdn.tailwindcss.com');
-  });
+      const out = readFileSync(join(extractDir, 'index.html'), 'utf8');
+      expect(out).toContain('CODESIGN_STANDALONE_RUNTIME');
+      expect(out).toContain('zip-jsx');
+      expect(out).not.toContain('https://cdn.tailwindcss.com');
+    },
+    JSX_ZIP_TIMEOUT_MS,
+  );
 
-  it('bundles the original source and export manifest for handoff quality', async () => {
-    const dest = join(tempDir, 'source-manifest.zip');
-    await exportZip(
-      'function App() { return <main id="zip-source">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
-      dest,
-      { sourcePath: 'screens/App.tsx', readmeTitle: 'Source manifest' },
-    );
+  it(
+    'bundles the original source and export manifest for handoff quality',
+    async () => {
+      const dest = join(tempDir, 'source-manifest.zip');
+      await exportZip(
+        'function App() { return <main id="zip-source">ZIP</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App/>);',
+        dest,
+        { sourcePath: 'screens/App.tsx', readmeTitle: 'Source manifest' },
+      );
 
-    const { Unzip } = await import('zip-lib');
-    const extractDir = join(tempDir, 'source-manifest-extracted');
-    const unzip = new Unzip();
-    await unzip.extract(dest, extractDir);
+      const { Unzip } = await import('zip-lib');
+      const extractDir = join(tempDir, 'source-manifest-extracted');
+      const unzip = new Unzip();
+      await unzip.extract(dest, extractDir);
 
-    expect(readFileSync(join(extractDir, 'source', 'screens', 'App.tsx'), 'utf8')).toContain(
-      'zip-source',
-    );
-    const manifest = JSON.parse(readFileSync(join(extractDir, 'manifest.json'), 'utf8')) as {
-      schemaVersion: number;
-      sourcePath: string;
-      files: string[];
-    };
-    expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.sourcePath).toBe('screens/App.tsx');
-    expect(manifest.files).toContain('source/screens/App.tsx');
-  });
+      expect(readFileSync(join(extractDir, 'source', 'screens', 'App.tsx'), 'utf8')).toContain(
+        'zip-source',
+      );
+      const manifest = JSON.parse(readFileSync(join(extractDir, 'manifest.json'), 'utf8')) as {
+        schemaVersion: number;
+        sourcePath: string;
+        files: string[];
+      };
+      expect(manifest.schemaVersion).toBe(1);
+      expect(manifest.sourcePath).toBe('screens/App.tsx');
+      expect(manifest.files).toContain('source/screens/App.tsx');
+    },
+    JSX_ZIP_TIMEOUT_MS,
+  );
 
   it('auto-collects local asset references and rewrites root-relative paths', async () => {
     const dest = join(tempDir, 'auto-assets.zip');

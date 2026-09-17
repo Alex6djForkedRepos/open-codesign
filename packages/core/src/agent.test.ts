@@ -595,6 +595,21 @@ describe('generateViaAgent()', () => {
     });
   });
 
+  it('uses supported default reasoning for Astra on a custom Responses gateway', async () => {
+    scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
+    await generateViaAgent({
+      prompt: 'design a dashboard',
+      history: [],
+      model: { provider: 'custom-local', modelId: 'gpt-6-astra' },
+      apiKey: 'test-key',
+      baseUrl: 'http://localhost:18537/v1',
+      wire: 'openai-responses',
+    });
+
+    expect(agentCalls[0]?.options.initialState?.thinkingLevel).toBe('low');
+    expect(agentCalls[0]?.options.initialState?.model?.reasoning).toBe(true);
+  });
+
   it('honors explicit reasoningLevel=off instead of model-family defaults', async () => {
     scriptedAgent = { assistantText: RESPONSE_WITH_ARTIFACT };
     await generateViaAgent({

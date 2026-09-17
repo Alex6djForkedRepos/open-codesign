@@ -97,6 +97,7 @@ ${trimmed}
 function hasTailwindScript(html: string): boolean {
   let found = false;
   transformHtmlElementBlocks(html, 'script', ({ attrs, tag }) => {
+    if (found) return tag;
     const src = getHtmlAttribute(attrs, 'src');
     if (src !== null) {
       try {

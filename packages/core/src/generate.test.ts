@@ -34,9 +34,25 @@ vi.mock('./skills/loader.js', async () => {
   };
 });
 
-import { applyComment, buildApplyCommentUserPrompt } from './index';
+import { applyComment, buildApplyCommentUserPrompt, reasoningForModel } from './index';
 
 const MODEL: ModelRef = { provider: 'anthropic', modelId: 'claude-sonnet-4-6' };
+
+describe('reasoningForModel', () => {
+  it.each([
+    'openai',
+    'custom-coproxy-local',
+    'openrouter',
+  ])('uses supported Astra reasoning for %s', (provider) => {
+    expect(reasoningForModel({ provider, modelId: 'gpt-6-astra' })).toBe('low');
+  });
+
+  it('preserves defaults for other custom models', () => {
+    expect(
+      reasoningForModel({ provider: 'custom-coproxy-local', modelId: 'gpt-4o' }),
+    ).toBeUndefined();
+  });
+});
 
 const SAMPLE_HTML = `<!doctype html><html lang="en"><body><h1>Hi</h1></body></html>`;
 

@@ -1,3 +1,4 @@
+import { i18n } from '@open-codesign/i18n';
 import type {
   CommentScope,
   LocalInputFile,
@@ -131,7 +132,12 @@ function startGenerationForDesign(set: SetState, designId: string, generationId:
   set((state) => {
     const generationByDesign = {
       ...state.generationByDesign,
-      [designId]: { generationId, stage: 'sending' as GenerationStage, startedAt: Date.now() },
+      [designId]: {
+        generationId,
+        stage: 'sending' as GenerationStage,
+        startedAt: Date.now(),
+        awaitingResponse: true,
+      },
     };
     return {
       generationByDesign,
@@ -158,6 +164,7 @@ function markGenerationRunningForDesign(
     const generationByDesign = {
       ...state.generationByDesign,
       [designId]: {
+        ...(current?.generationId === generationId ? current : {}),
         generationId,
         stage,
         startedAt: current?.startedAt ?? Date.now(),
@@ -180,6 +187,10 @@ function reconcileGenerationStatus(
 ): void {
   set((state) => {
     const next: CodesignState['generationByDesign'] = {};
+    // Main can remove a completed run before its IPC response reaches us.
+    for (const [designId, run] of Object.entries(state.generationByDesign)) {
+      if (run.awaitingResponse) next[designId] = run;
+    }
     for (const item of running) {
       const existing = state.generationByDesign[item.designId];
       next[item.designId] =
@@ -223,7 +234,7 @@ function updateGenerationStageById(
     if (current?.generationId !== generationId) return {};
     const generationByDesign = {
       ...state.generationByDesign,
-      [designId]: { generationId, stage, startedAt: current.startedAt ?? Date.now() },
+      [designId]: { ...current, stage, startedAt: current.startedAt ?? Date.now() },
     };
     return {
       generationByDesign,
@@ -458,6 +469,9 @@ function applyGenerateSuccess(
   if (rejectedUsageFields.length > 0) {
     const detail = rejectedUsageFields.join(', ');
     console.warn('[open-codesign] dropped non-finite usage values from provider:', detail);
+  }
+  if (stateBefore.generationByDesign[designId]?.awaitingResponse) {
+    setTimeout(() => get().tryAutoPolish(designId, i18n.language), 1200);
   }
 }
 

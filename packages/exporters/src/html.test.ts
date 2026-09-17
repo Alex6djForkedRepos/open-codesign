@@ -38,6 +38,18 @@ describe('buildHtmlDocument', () => {
     expect(out).toContain('https://cdn.tailwindcss.com');
   });
 
+  it.each([
+    'assets/app.js',
+    'https://example.com/app.js',
+  ])('does not duplicate Tailwind when followed by %s', (scriptSrc) => {
+    const out = buildHtmlDocument(
+      `<html><head><script src="https://cdn.tailwindcss.com"></script><script src="${scriptSrc}"></script></head><body>hi</body></html>`,
+      { injectTailwind: true, prettify: false },
+    );
+
+    expect(out.match(/src="https:\/\/cdn\.tailwindcss\.com"/g)).toHaveLength(1);
+  });
+
   it('uses sourcePath to preserve TSX transform options during export', () => {
     const out = buildHtmlDocument(
       'type Props = { title: string };\nfunction App({ title }: Props) { return <main>{title}</main>; }\nReactDOM.createRoot(document.getElementById("root")).render(<App title="hi" />);',
