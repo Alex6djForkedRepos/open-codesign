@@ -712,7 +712,10 @@ export function PreviewPane({ onPickStarter }: PreviewPaneProps) {
     <div className={PREVIEW_PANE_LAYOUT_CLASSES.root}>
       <div className={PREVIEW_PANE_LAYOUT_CLASSES.stage}>
         {isWelcome ? null : (
-          <div className="flex flex-wrap items-stretch justify-between gap-[var(--space-2)] border-b border-[var(--color-border-muted)] bg-[var(--color-background-secondary)] pl-[var(--space-2)]">
+          <div
+            data-preview-header
+            className="flex flex-wrap items-stretch justify-between gap-[var(--space-2)] border-b border-[var(--color-border-muted)] bg-[var(--color-background-secondary)] pl-[var(--space-2)]"
+          >
             <div hidden={previewFullscreen} className="min-w-0 flex">
               {hasTabs ? <CanvasTabBar /> : <div />}
             </div>

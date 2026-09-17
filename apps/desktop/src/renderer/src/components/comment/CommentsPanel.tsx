@@ -1,7 +1,7 @@
 import { useT } from '@open-codesign/i18n';
 import type { CommentRow } from '@open-codesign/shared';
 import { Send, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useCodesignStore } from '../../store';
 
@@ -25,6 +25,24 @@ export function CommentsPanel() {
   const active = view === 'workspace' && interactionMode === 'comment' && currentDesignId !== null;
   const [mounted, setMounted] = useState(active);
   const [visible, setVisible] = useState(false);
+  const [headerBottom, setHeaderBottom] = useState(64);
+
+  useLayoutEffect(() => {
+    if (!mounted) return;
+    const header = document.querySelector<HTMLElement>('[data-preview-header]');
+    if (!header) return;
+    const updatePosition = () => setHeaderBottom(header.getBoundingClientRect().bottom);
+    updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(header);
+    // The stage changes height when the app titlebar wraps above this header.
+    if (header.parentElement) observer.observe(header.parentElement);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [mounted]);
 
   useEffect(() => {
     if (active) {
@@ -78,14 +96,16 @@ export function CommentsPanel() {
     <aside
       aria-label={t('comments.panel.title', { count: visibleComments.length })}
       style={{
+        top: `calc(${headerBottom}px + var(--space-4))`,
+        maxHeight: `max(0px, calc(100dvh - ${headerBottom}px - 2 * var(--space-4)))`,
         transform: visible ? 'translateX(0)' : 'translateX(calc(100% + 24px))',
         opacity: visible ? 1 : 0,
         transition: 'transform 200ms ease-out, opacity 200ms ease-out',
       }}
-      className="fixed top-[80px] right-[16px] z-40 w-[min(340px,calc(100vw-32px))] flex flex-col rounded-[var(--radius-xl)] border border-[var(--color-border-muted)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-elevated)] max-h-[calc(100dvh-96px)] overflow-hidden"
+      className="fixed right-[16px] z-40 w-[min(340px,calc(100vw-32px))] flex flex-col rounded-[var(--radius-xl)] border border-[var(--color-border-muted)] bg-[var(--color-surface-elevated)] shadow-[var(--shadow-elevated)] overflow-hidden"
     >
       {/* Header */}
-      <header className="flex items-center justify-between px-[16px] py-[12px] border-b border-[var(--color-border-muted)]">
+      <header className="flex shrink-0 items-center justify-between px-[16px] py-[12px] border-b border-[var(--color-border-muted)]">
         <div className="flex items-baseline gap-[6px]">
           <span className="text-[13px] font-medium text-[var(--color-text-primary)]">
             {t('comments.panel.title', { count: visibleComments.length })}
