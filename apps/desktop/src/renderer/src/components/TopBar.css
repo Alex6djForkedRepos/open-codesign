@@ -1,0 +1,54 @@
+.codesign-topbar {
+  display: grid;
+  grid-template-areas:
+    "brand drag controls"
+    "navigation navigation model";
+  grid-template-columns: auto minmax(var(--space-6), 1fr) auto;
+  grid-template-rows: var(--size-titlebar-height) auto;
+  column-gap: var(--space-3);
+  padding-bottom: var(--space-2);
+}
+
+.codesign-topbar-brand {
+  grid-area: brand;
+}
+
+.codesign-topbar-navigation {
+  grid-area: navigation;
+  display: flex;
+  align-items: center;
+}
+
+.codesign-topbar-drag {
+  grid-area: drag;
+}
+
+.codesign-topbar-model {
+  grid-area: model;
+  justify-self: end;
+  width: clamp(var(--size-titlebar-model-min-width), 25vw, var(--size-titlebar-model-max-width));
+}
+
+.codesign-topbar-controls {
+  grid-area: controls;
+  justify-self: end;
+}
+
+.codesign-topbar-tab-indicator {
+  bottom: 0;
+}
+
+/* Keep the native drag strip and every action visible before the one-row
+   header runs out of room, including when desktop zoom reduces CSS width. */
+@media (min-width: 85rem) {
+  .codesign-topbar {
+    grid-template-areas: "brand navigation drag model controls";
+    grid-template-columns: auto minmax(0, max-content) minmax(var(--space-6), 1fr) auto auto;
+    grid-template-rows: var(--size-titlebar-height);
+    padding-bottom: 0;
+  }
+
+  .codesign-topbar-tab-indicator {
+    bottom: calc((var(--size-control-md) - var(--size-titlebar-height)) / 2 - var(--space-0_5));
+  }
+}
