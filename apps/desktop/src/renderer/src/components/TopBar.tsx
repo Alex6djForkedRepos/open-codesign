@@ -42,6 +42,7 @@ export function TopBar() {
   return (
     <header
       className="codesign-topbar shrink-0 items-center pr-[var(--space-5)] select-none"
+      data-view={view}
       style={{
         ...dragStyle,
         paddingLeft: 'var(--size-titlebar-pad-left)',
@@ -49,9 +50,16 @@ export function TopBar() {
         background: 'var(--color-background)',
       }}
     >
-      <div className="codesign-topbar-brand">
+      <button
+        type="button"
+        className="codesign-topbar-brand inline-flex h-10 items-center rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        onClick={() => setView('hub')}
+        aria-label={t('topbar.openMyDesigns')}
+        title={`Open CoDesign v${__APP_VERSION__}`}
+        style={noDragStyle}
+      >
         <Wordmark badge={`v${__APP_VERSION__}`} size="titlebar" />
-      </div>
+      </button>
 
       <div className="codesign-topbar-navigation min-w-0 h-full">
         {view === 'settings' ? (

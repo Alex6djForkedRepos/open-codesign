@@ -30,6 +30,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -278,6 +279,7 @@ function WorkspaceSection({ files }: { files: DesignFileEntry[] }) {
   const [detectingPreview, setDetectingPreview] = useState(false);
   const [detectResult, setDetectResult] = useState<PreviewDetectResult | null>(null);
   const [previewOptionsOpen, setPreviewOptionsOpen] = useState(false);
+  const previewOptionsId = useId();
   const autoDetectDesignRef = useRef<string | null>(null);
 
   const currentDesign = designs.find((d) => d.id === currentDesignId);
@@ -503,80 +505,112 @@ function WorkspaceSection({ files }: { files: DesignFileEntry[] }) {
   }
 
   return (
-    <div className="border-b border-[var(--color-border-muted)] px-[var(--space-4)] py-[var(--space-3)]">
-      <div className="flex min-w-0 items-center gap-[var(--space-2)]">
-        <span className="shrink-0 text-[10px] font-medium uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)]">
-          {t('canvas.workspace.sectionTitle')}
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate text-[10px] text-[var(--color-text-secondary)]"
-          title={workspacePath ?? undefined}
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {workspacePath ? (
-            <>
-              {truncatePath(workspacePath)}
-              {folderExists === false && (
-                <span className="ml-1 text-[var(--color-text-warning,_theme(colors.amber.500))]">
-                  !
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="text-[var(--color-text-muted)] not-italic">
-              {t('canvas.workspace.default')}
-            </span>
-          )}
-        </span>
-        <div className="flex shrink-0 items-center gap-[var(--space-1)]">
-          <button
-            type="button"
-            onClick={handlePickWorkspace}
-            disabled={disabled}
-            className="inline-flex h-6 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 text-[10px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            title={workspacePath ? t('canvas.workspace.change') : t('canvas.workspace.choose')}
+    <div className="codesign-workspace-section border-b border-[var(--color-border-muted)] px-[var(--space-4)] py-[var(--space-2)]">
+      <div className="codesign-workspace-summary flex min-w-0 flex-wrap items-center gap-[var(--space-2)]">
+        <div className="flex min-w-0 flex-[1_1_14rem] items-center gap-[var(--space-2)]">
+          <span className="shrink-0 text-[var(--text-sm)] font-medium text-[var(--color-text-muted)]">
+            {t('canvas.workspace.sectionTitle')}
+          </span>
+          <span
+            className="min-w-0 flex-1 truncate text-[var(--text-sm)] text-[var(--color-text-secondary)]"
+            title={workspacePath ?? undefined}
+            style={{ fontFamily: 'var(--font-mono)' }}
           >
-            <Folder className="h-3 w-3" aria-hidden />
-            {workspacePath ? t('canvas.workspace.change') : t('canvas.workspace.choose')}
-          </button>
-          {workspacePath && (
+            {workspacePath ? (
+              <>
+                {truncatePath(workspacePath)}
+                {folderExists === false && (
+                  <span className="ml-1 text-[var(--color-text-warning,_theme(colors.amber.500))]">
+                    !
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-[var(--color-text-muted)] not-italic">
+                {t('canvas.workspace.default')}
+              </span>
+            )}
+          </span>
+          <div className="flex shrink-0 items-center gap-[var(--space-1)]">
             <button
               type="button"
-              onClick={handleOpenWorkspace}
-              disabled={picking}
-              className="inline-flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] text-[10px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-              title={t('canvas.workspace.open')}
+              onClick={handlePickWorkspace}
+              disabled={disabled}
+              className="inline-flex h-[var(--size-control-sm)] items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 text-[var(--text-sm)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                isCurrentDesignGenerating
+                  ? t('canvas.workspace.busyGenerating')
+                  : workspacePath
+                    ? t('canvas.workspace.change')
+                    : t('canvas.workspace.choose')
+              }
             >
-              <FolderOpen className="h-3 w-3" aria-hidden />
+              <Folder className="h-3 w-3" aria-hidden />
+              {workspacePath ? t('canvas.workspace.change') : t('canvas.workspace.choose')}
             </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-[var(--space-3)] rounded-[var(--radius-md)] border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)]">
-        <div className="flex min-w-0 items-center gap-[var(--space-2)] p-[var(--space-2)]">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border-muted)] text-[var(--color-text-muted)]">
-            <Globe2 className="h-3.5 w-3.5" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-[var(--space-1)]">
-              <span className="text-[10px] font-medium uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)]">
-                {t('canvas.workspace.preview.label')}
-              </span>
-              <span className="max-w-full break-words rounded-[var(--radius-pill)] border border-[var(--color-border-muted)] px-1.5 py-0.5 text-[9px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-secondary)]">
-                {previewConfigured
-                  ? t('canvas.workspace.preview.status.saved')
-                  : t('canvas.workspace.preview.status.auto')}
-                : {t(previewModeLabelKey(effectivePreviewMode))}
-              </span>
-            </div>
+            {workspacePath && (
+              <button
+                type="button"
+                onClick={handleOpenWorkspace}
+                disabled={picking}
+                className="inline-flex h-[var(--size-control-sm)] w-[var(--size-control-sm)] items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] text-[var(--text-sm)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                title={t('canvas.workspace.open')}
+                aria-label={t('canvas.workspace.open')}
+              >
+                <FolderOpen className="h-3 w-3" aria-hidden />
+              </button>
+            )}
           </div>
+        </div>
+
+        <div className="flex max-w-full min-w-0 flex-[0_1_auto] items-center gap-[var(--space-1)]">
+          <button
+            type="button"
+            onClick={() => setPreviewOptionsOpen((open) => !open)}
+            aria-expanded={previewOptionsOpen}
+            aria-controls={previewOptionsId}
+            aria-busy={detectingPreview || savingPreview}
+            className="inline-flex min-h-[var(--size-control-sm)] min-w-0 items-center gap-[var(--space-2)] rounded-[var(--radius-sm)] border border-[var(--color-border-muted)] bg-[var(--color-surface-raised)] px-[var(--space-2)] py-[var(--space-1)] text-left text-[var(--text-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-hover)]"
+            title={
+              detectingPreview
+                ? t('canvas.workspace.preview.summary.detecting')
+                : `${previewSummaryText} · ${previewOptionsOpen ? t('canvas.workspace.preview.actions.hideOptions') : t('canvas.workspace.preview.actions.showOptions')}`
+            }
+          >
+            <span className="shrink-0 text-[var(--color-text-muted)]">
+              <Globe2 className="h-3.5 w-3.5" aria-hidden />
+            </span>
+            <span className="min-w-0 break-words">
+              {t('canvas.workspace.preview.label')}
+              {' · '}
+              {detectingPreview ? (
+                t('canvas.workspace.preview.summary.detecting')
+              ) : (
+                <>
+                  {previewConfigured
+                    ? t('canvas.workspace.preview.status.saved')
+                    : t('canvas.workspace.preview.status.auto')}
+                  : {t(previewModeLabelKey(effectivePreviewMode))}
+                </>
+              )}
+            </span>
+            <ChevronRight
+              className={`h-3.5 w-3.5 shrink-0 transition-transform ${previewOptionsOpen ? 'rotate-90' : ''}`}
+              aria-hidden
+            />
+          </button>
           <button
             type="button"
             onClick={() => handleDetectPreview()}
             disabled={disabled || savingPreview || detectingPreview || !workspacePath}
-            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 text-[10px] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-            title={t('canvas.workspace.preview.detect')}
+            className="inline-flex h-[var(--size-control-sm)] shrink-0 items-center gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-2 text-[var(--text-sm)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            title={
+              isCurrentDesignGenerating
+                ? t('canvas.workspace.busyGenerating')
+                : detectingPreview
+                  ? t('canvas.workspace.preview.summary.detecting')
+                  : t('canvas.workspace.preview.detect')
+            }
           >
             <RefreshCw
               className={`h-3 w-3 ${detectingPreview ? 'animate-spin' : ''}`}
@@ -584,97 +618,84 @@ function WorkspaceSection({ files }: { files: DesignFileEntry[] }) {
             />
             {t('canvas.workspace.preview.detect')}
           </button>
-          <button
-            type="button"
-            onClick={() => setPreviewOptionsOpen((open) => !open)}
-            aria-expanded={previewOptionsOpen}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)]"
-            title={
-              previewOptionsOpen
-                ? t('canvas.workspace.preview.actions.hideOptions')
-                : t('canvas.workspace.preview.actions.showOptions')
-            }
-          >
-            <ChevronRight
-              className={`h-3.5 w-3.5 transition-transform ${previewOptionsOpen ? 'rotate-90' : ''}`}
-              aria-hidden
-            />
-          </button>
         </div>
-        {previewOptionsOpen ? (
-          <div className="border-t border-[var(--color-border-muted)] p-[var(--space-2)]">
-            <div className="grid gap-[var(--space-2)]">
-              <p
-                className="m-0 text-[10px] leading-[var(--leading-body)] text-[var(--color-text-muted)]"
-                title={detectResult?.message ?? previewSummaryText}
-              >
-                {detectingPreview
-                  ? t('canvas.workspace.preview.summary.detecting')
-                  : (detectResult?.message ?? previewSummaryText)}
-              </p>
-              <label className="grid gap-1 text-[10px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)]">
-                {t('canvas.workspace.preview.mode.label')}
-                <select
-                  value={previewModeInput}
-                  onChange={handlePreviewModeChange}
-                  disabled={disabled || savingPreview}
-                  className="h-8 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-[11px] normal-case tracking-normal text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
-                  title={t(previewModeLabelKey(effectivePreviewMode))}
-                >
-                  <option value="managed-file" disabled={integratedPreviewBlocked}>
-                    {t('canvas.workspace.preview.mode.integrated')}
-                  </option>
-                  <option value="connected-url">
-                    {t('canvas.workspace.preview.mode.connectedUrl')}
-                  </option>
-                  <option value="external-app">
-                    {t('canvas.workspace.preview.mode.externalApp')}
-                  </option>
-                  <option value="none">{t('canvas.workspace.preview.mode.off')}</option>
-                </select>
-              </label>
-              {previewNeedsUrl ? (
-                <label className="grid gap-1 text-[10px] uppercase tracking-[var(--tracking-label)] text-[var(--color-text-muted)]">
-                  {t('canvas.workspace.preview.urlLabel')}
-                  <div className="flex min-w-0 items-center gap-[var(--space-1)]">
-                    <input
-                      value={previewUrlInput}
-                      onChange={(event) => setPreviewUrlInput(event.currentTarget.value)}
-                      onBlur={() => {
-                        if (previewModeInput === 'external-app' || normalizedPreviewUrl) {
-                          void handlePreviewUrlApply();
-                        }
-                      }}
-                      onKeyDown={handlePreviewUrlKeyDown}
-                      placeholder={t('canvas.workspace.preview.urlPlaceholder')}
-                      disabled={disabled || savingPreview}
-                      className={`h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border bg-[var(--color-background)] px-2 text-[11px] normal-case tracking-normal text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50 ${
-                        previewUrlInvalid
-                          ? 'border-[var(--color-danger)]'
-                          : 'border-[var(--color-border)]'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={handlePreviewUrlApply}
-                      disabled={disabled || savingPreview || previewUrlInvalid}
-                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
-                      title={t('canvas.workspace.preview.apply')}
-                    >
-                      <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-                    </button>
-                  </div>
-                </label>
-              ) : null}
-              <p className="m-0 text-[10px] leading-[var(--leading-body)] text-[var(--color-text-muted)]">
-                {integratedPreviewBlocked
-                  ? t('canvas.workspace.preview.hint.appWorkspace')
-                  : t('canvas.workspace.preview.hint.simpleWorkspace')}
-              </p>
-            </div>
-          </div>
-        ) : null}
       </div>
+      {previewOptionsOpen ? (
+        <div
+          id={previewOptionsId}
+          className="mt-[var(--space-2)] rounded-[var(--radius-md)] border border-[var(--color-border-muted)] p-[var(--space-2)]"
+        >
+          <div className="grid gap-[var(--space-2)]">
+            <p
+              className="m-0 text-[var(--text-sm)] leading-[var(--leading-body)] text-[var(--color-text-muted)]"
+              title={detectResult?.message ?? previewSummaryText}
+            >
+              {detectingPreview
+                ? t('canvas.workspace.preview.summary.detecting')
+                : (detectResult?.message ?? previewSummaryText)}
+            </p>
+            <label className="grid gap-1 text-[var(--text-sm)] text-[var(--color-text-muted)]">
+              {t('canvas.workspace.preview.mode.label')}
+              <select
+                value={previewModeInput}
+                onChange={handlePreviewModeChange}
+                disabled={disabled || savingPreview}
+                className="h-8 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-[var(--text-sm)] text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                title={t(previewModeLabelKey(effectivePreviewMode))}
+              >
+                <option value="managed-file" disabled={integratedPreviewBlocked}>
+                  {t('canvas.workspace.preview.mode.integrated')}
+                </option>
+                <option value="connected-url">
+                  {t('canvas.workspace.preview.mode.connectedUrl')}
+                </option>
+                <option value="external-app">
+                  {t('canvas.workspace.preview.mode.externalApp')}
+                </option>
+                <option value="none">{t('canvas.workspace.preview.mode.off')}</option>
+              </select>
+            </label>
+            {previewNeedsUrl ? (
+              <label className="grid gap-1 text-[var(--text-sm)] text-[var(--color-text-muted)]">
+                {t('canvas.workspace.preview.urlLabel')}
+                <div className="flex min-w-0 items-center gap-[var(--space-1)]">
+                  <input
+                    value={previewUrlInput}
+                    onChange={(event) => setPreviewUrlInput(event.currentTarget.value)}
+                    onBlur={() => {
+                      if (previewModeInput === 'external-app' || normalizedPreviewUrl) {
+                        void handlePreviewUrlApply();
+                      }
+                    }}
+                    onKeyDown={handlePreviewUrlKeyDown}
+                    placeholder={t('canvas.workspace.preview.urlPlaceholder')}
+                    disabled={disabled || savingPreview}
+                    className={`h-8 min-w-0 flex-1 rounded-[var(--radius-sm)] border bg-[var(--color-background)] px-2 text-[var(--text-sm)] text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50 ${
+                      previewUrlInvalid
+                        ? 'border-[var(--color-danger)]'
+                        : 'border-[var(--color-border)]'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={handlePreviewUrlApply}
+                    disabled={disabled || savingPreview || previewUrlInvalid}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                    title={t('canvas.workspace.preview.apply')}
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+              </label>
+            ) : null}
+            <p className="m-0 text-[var(--text-sm)] leading-[var(--leading-body)] text-[var(--color-text-muted)]">
+              {integratedPreviewBlocked
+                ? t('canvas.workspace.preview.hint.appWorkspace')
+                : t('canvas.workspace.preview.hint.simpleWorkspace')}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

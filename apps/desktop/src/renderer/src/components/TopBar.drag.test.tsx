@@ -87,9 +87,24 @@ describe('TopBar window drag regions', () => {
     }
     expect(css).toContain('"brand drag controls"');
     expect(css).toContain('"navigation navigation model"');
-    expect(css).toContain('@media (min-width: 85rem)');
+    expect(css).toContain('@media (min-width: 62.5rem)');
+    expect(css).toContain('.codesign-topbar:not([data-view="hub"])');
+    expect(css).toContain('@media (min-width: 75rem)');
     expect(css).toContain('"brand navigation drag model controls"');
     expect(css).toContain('minmax(var(--space-6), 1fr)');
+  });
+
+  it('keeps a compact home target with version identification and a token-sized single row', () => {
+    fakeState.view = 'workspace';
+    const html = renderToStaticMarkup(<TopBar />);
+    const css = readFileSync(new URL('./TopBar.css', import.meta.url), 'utf8');
+
+    expect(html).toContain('data-view="workspace"');
+    expect(html).toContain('codesign-topbar-brand inline-flex h-10');
+    expect(html).toContain('title="Open CoDesign vtest"');
+    expect(html).toContain('aria-label="topbar.openMyDesigns"');
+    expect(css).toContain('grid-template-rows: var(--size-titlebar-height)');
+    expect(css).toContain('minmax(0, 1fr) var(--space-6)');
   });
 
   it('retains every hub navigation label and active-page semantics', () => {
@@ -102,6 +117,17 @@ describe('TopBar window drag regions', () => {
     expect(html).toContain('aria-label="hub.tabs.all"');
     expect(html).toContain('aria-haspopup="listbox"');
     expect(html).toContain('aria-label="settings.title"');
+  });
+
+  it('bounds the model popup by the active header rows and leaves its options scrollable', () => {
+    const css = readFileSync(new URL('./TopBar.css', import.meta.url), 'utf8');
+    expect(css).toContain(
+      'max-height: calc(100dvh - var(--codesign-topbar-content-height) - var(--space-2))',
+    );
+    expect(css).toContain('[role="listbox"] > .codesign-scroll-area');
+    expect(css).toContain('min-height: 0');
+    expect(css).toContain('[role="listbox"] > :not(.codesign-scroll-area)');
+    expect(css).toContain('--codesign-topbar-content-height: var(--size-titlebar-height)');
   });
 
   it('lets long design names shrink while preserving the full tooltip and navigation label', () => {

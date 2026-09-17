@@ -282,6 +282,7 @@ Contract tests check loaded instructions, supported source examples, preference 
 
 ### Preview and workflow
 
+- **Compact desktop chrome** — workspace and settings headers use one row from 1,000 CSS pixels, with a two-row fallback at narrower widths and extra room for gallery tabs. Design/model tooltips preserve full names. Workspace paths and preview status share a wrapping summary row; expand the preview summary for connection settings without changing the active preview mode.
 - **Fullscreen preview** — expand a runnable JSX/HTML preview within the app window without resizing sidebars manually. This works in Preview, a dedicated file tab such as `App.jsx`, and the Files tab's inline preview. Chat, file navigation, and tweak controls are temporarily hidden; the titlebar and **Exit fullscreen** remain available. Exit or press Escape to restore the previous layout without reloading the preview's forms or navigation state. Menus and artifact dialogs handle Escape first; changing designs or tabs leaves fullscreen. Other file types and connected URLs do not enable this mode.
 - **Readable preview controls** — Comment mode, zoom, and Export retain visible labels and wrap below file tabs when space is tight. Zoom and export menus stay inside the window; use arrow keys / Home / End to navigate, Enter to select, and Escape to close and return focus. Preview zoom changes the artifact's display scale, not the app's control sizes or the artifact's source dimensions.
 - **Phone / tablet / desktop preview** — true responsive frames, switch with one click
