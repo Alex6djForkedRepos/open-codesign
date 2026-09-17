@@ -114,6 +114,21 @@ function buildFreshDesignState(state: CodesignState, designId: string): Partial<
 }
 
 export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActions {
+  let initializingDesign: Promise<void> | null = null;
+
+  async function initializeCurrentDesign(): Promise<void> {
+    await get().loadDesigns();
+    const designs = get().designs;
+    if (get().currentDesignId !== null) return;
+
+    if (designs.length > 0) {
+      const first = designs[0];
+      if (first) await get().switchDesign(first.id);
+      return;
+    }
+    await get().createNewDesign();
+  }
+
   return {
     async loadDesigns() {
       if (!window.codesign) return;
@@ -134,18 +149,13 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
 
     async ensureCurrentDesign() {
       if (!window.codesign) return;
-      await get().loadDesigns();
-      const designs = get().designs;
-      if (get().currentDesignId !== null) return;
-
-      if (designs.length > 0) {
-        const first = designs[0];
-        if (first) await get().switchDesign(first.id);
-        return;
+      // Concurrent boot effects must share creation until the design is selected.
+      if (initializingDesign === null) {
+        initializingDesign = initializeCurrentDesign().finally(() => {
+          initializingDesign = null;
+        });
       }
-      // No designs exist yet — create the first one silently. The user can
-      // rename it later or just send a prompt and we'll auto-name it.
-      await get().createNewDesign();
+      await initializingDesign;
     },
 
     openNewDesignDialog() {

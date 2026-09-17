@@ -2177,6 +2177,85 @@ describe('useCodesignStore artifact persistence', () => {
 });
 
 describe('loadDesigns startup', () => {
+  it('shares in-flight startup initialization instead of creating duplicate blank designs', async () => {
+    const creation = deferred<typeof DEFAULT_DESIGN>();
+    let created = false;
+    const createDesign = vi.fn(async () => {
+      const design = await creation.promise;
+      created = true;
+      return design;
+    });
+    const listDesigns = vi.fn(async () => (created ? [DEFAULT_DESIGN] : []));
+    vi.stubGlobal('window', {
+      codesign: {
+        snapshots: { ...mockSnapshotsApi(), listDesigns, createDesign },
+        chat: mockChatApi(),
+        comments: mockCommentsApi(),
+      },
+      setTimeout,
+    });
+
+    const first = useCodesignStore.getState().ensureCurrentDesign();
+    const second = useCodesignStore.getState().ensureCurrentDesign();
+    await vi.waitFor(() => expect(createDesign).toHaveBeenCalled());
+    const third = useCodesignStore.getState().ensureCurrentDesign();
+    creation.resolve(DEFAULT_DESIGN);
+    await Promise.all([first, second, third]);
+
+    expect(createDesign).toHaveBeenCalledTimes(1);
+    expect(listDesigns).toHaveBeenCalledTimes(2);
+    expect(useCodesignStore.getState().currentDesignId).toBe(DEFAULT_DESIGN.id);
+    expect(useCodesignStore.getState().designs).toEqual([DEFAULT_DESIGN]);
+  });
+
+  it('retries startup after a failed design-list read without swallowing the error', async () => {
+    const error = new Error('Design storage unavailable');
+    const listDesigns = vi.fn().mockRejectedValueOnce(error).mockResolvedValue([DEFAULT_DESIGN]);
+    const createDesign = vi.fn();
+    vi.stubGlobal('window', {
+      codesign: {
+        snapshots: { ...mockSnapshotsApi(), listDesigns, createDesign },
+        chat: mockChatApi(),
+        comments: mockCommentsApi(),
+      },
+      setTimeout,
+    });
+
+    await expect(useCodesignStore.getState().ensureCurrentDesign()).rejects.toBe(error);
+    await useCodesignStore.getState().ensureCurrentDesign();
+
+    expect(listDesigns).toHaveBeenCalledTimes(2);
+    expect(createDesign).not.toHaveBeenCalled();
+    expect(useCodesignStore.getState().currentDesignId).toBe(DEFAULT_DESIGN.id);
+  });
+
+  it('retries startup when creating the initial design failed', async () => {
+    const createDesign = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Workspace unavailable'))
+      .mockResolvedValue(DEFAULT_DESIGN);
+    const listDesigns = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([DEFAULT_DESIGN]);
+    vi.stubGlobal('window', {
+      codesign: {
+        snapshots: { ...mockSnapshotsApi(), listDesigns, createDesign },
+        chat: mockChatApi(),
+        comments: mockCommentsApi(),
+      },
+      setTimeout,
+    });
+
+    await useCodesignStore.getState().ensureCurrentDesign();
+    expect(useCodesignStore.getState().currentDesignId).toBeNull();
+    await useCodesignStore.getState().ensureCurrentDesign();
+
+    expect(createDesign).toHaveBeenCalledTimes(2);
+    expect(useCodesignStore.getState().currentDesignId).toBe(DEFAULT_DESIGN.id);
+  });
+
   it('populates designs from listDesigns IPC so persisted work reappears after relaunch', async () => {
     const designs = [
       {
