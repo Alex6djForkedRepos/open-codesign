@@ -1,5 +1,9 @@
 import { useT } from '@open-codesign/i18n';
-import { buildPreviewDocument, isRenderablePath } from '@open-codesign/runtime';
+import {
+  buildInteractivePreviewDocument,
+  INTERACTIVE_PREVIEW_SANDBOX,
+  isRenderablePath,
+} from '@open-codesign/runtime';
 import {
   type CommentRow,
   DEFAULT_SOURCE_ENTRY,
@@ -1751,7 +1755,7 @@ export function WorkspaceFilePreview({
         workspacePath: currentDesign?.workspacePath,
         filePath: activePreviewSource.path,
       });
-      return buildPreviewDocument(activePreviewSource.content, {
+      return buildInteractivePreviewDocument(activePreviewSource.content, {
         path: activePreviewSource.path,
         baseHref,
       });
@@ -1838,7 +1842,7 @@ export function WorkspaceFilePreview({
         key={srcDoc}
         ref={iframeRef}
         title={`design-preview-${path}`}
-        sandbox="allow-scripts"
+        sandbox={INTERACTIVE_PREVIEW_SANDBOX}
         srcDoc={srcDoc}
         onLoad={() => {
           const win = iframeRef.current?.contentWindow;

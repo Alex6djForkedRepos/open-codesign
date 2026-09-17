@@ -1,5 +1,8 @@
 import { useT } from '@open-codesign/i18n';
-import { buildPreviewDocument } from '@open-codesign/runtime';
+import {
+  buildInteractivePreviewDocument,
+  INTERACTIVE_PREVIEW_SANDBOX,
+} from '@open-codesign/runtime';
 import type { CommentRow } from '@open-codesign/shared';
 import {
   type CSSProperties,
@@ -226,7 +229,7 @@ function PreviewSlot({
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: srcDocStableKey is the intentional dependency. source flows through naturally because the factory closes over it and re-runs whenever the stable key flips, which is exactly when structural changes (anything outside EDITMODE / TWEAK_SCHEMA markers) are present.
   const srcDoc = useMemo(
-    () => buildPreviewDocument(source, { path: inferPreviewSourcePath(source) }),
+    () => buildInteractivePreviewDocument(source, { path: inferPreviewSourcePath(source) }),
     [srcDocStableKey],
   );
   const previousDocument = useRef(srcDoc);
@@ -249,7 +252,7 @@ function PreviewSlot({
       key={srcDoc}
       ref={setRef}
       title={`design-preview-${designId}`}
-      sandbox="allow-scripts"
+      sandbox={INTERACTIVE_PREVIEW_SANDBOX}
       srcDoc={srcDoc}
       onLoad={(e) => {
         // Once the iframe's document has actually loaded, its in-page message

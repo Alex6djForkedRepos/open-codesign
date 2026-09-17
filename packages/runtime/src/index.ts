@@ -647,6 +647,20 @@ export function buildPreviewDocument(
   return wrapJsxAsSrcdoc(stripped, { kind, baseHref: opts.baseHref });
 }
 
+export const INTERACTIVE_PREVIEW_SANDBOX = 'allow-scripts allow-forms';
+
+export function buildInteractivePreviewDocument(
+  userSource: string,
+  opts: BuildPreviewDocumentOptions = {},
+): string {
+  const document = buildPreviewDocument(userSource, opts).replace(/^\s*<!doctype[^>]*>/iu, '');
+  // Apply before even malformed authored head markup. Submit events may run,
+  // but browser-enforced CSP also blocks form.submit(), which bypasses events.
+  return `<!doctype html>
+<meta http-equiv="Content-Security-Policy" content="form-action 'none'" data-codesign-form-policy />
+${document}`;
+}
+
 function ensureStandaloneShell(html: string): string {
   const trimmed = html.trim();
   if (/^<!doctype/i.test(trimmed)) return trimmed;
