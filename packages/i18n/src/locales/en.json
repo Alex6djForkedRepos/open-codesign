@@ -2,6 +2,9 @@
   "activeMessages": {
     "queue": "Queue follow-up",
     "steer": "Steer next step",
+    "queueShort": "Queue",
+    "steerShort": "Steer",
+    "help": "Message delivery help",
     "pending": "Queued — not yet delivered",
     "notDelivered": "Not delivered",
     "recover": "Recover to draft",

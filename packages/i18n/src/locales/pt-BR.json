@@ -2,6 +2,9 @@
   "activeMessages": {
     "queue": "Enfileirar acompanhamento",
     "steer": "Orientar próximo passo",
+    "queueShort": "Enfileirar",
+    "steerShort": "Orientar",
+    "help": "Ajuda sobre o envio de mensagens",
     "pending": "Na fila — ainda não entregue",
     "notDelivered": "Não entregue",
     "recover": "Recuperar como rascunho",

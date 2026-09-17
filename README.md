@@ -88,6 +88,10 @@ never automatically resent. Active-run messages are text-only: remove attached
 files, reference URLs, and queued comments before sending; those drafts are not
 silently included or discarded. Individual queue editing/removal is not supported.
 Delivery receipts use the existing local pi session JSONL, not a separate database.
+After sending, an empty composer stays compact; queue and steering actions appear
+only while composing another message. Delivery explanations are available on demand,
+not inserted into the draft. Long tool errors show a short reason with expandable,
+scrollable original diagnostics.
 
 From a blank prompt to a finished artifact, the agent plans, writes, self-checks, and ships something with hover states, tabs, and empty states already wired up:
 
@@ -413,6 +417,8 @@ See also the Chinese README: [README.zh-CN.md#社群](./README.zh-CN.md#%E7%A4%B
 ## Contributing
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md). Open an issue before writing code and run `pnpm lint && pnpm typecheck && pnpm test` before a PR.
+Desktop tests use at most two workers on Windows so concurrent Chromium and
+filesystem integration suites do not exhaust the host during workspace-wide checks.
 
 ## License
 

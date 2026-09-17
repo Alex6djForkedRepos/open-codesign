@@ -2,6 +2,9 @@
   "activeMessages": {
     "queue": "排队追加消息",
     "steer": "调整下一步",
+    "queueShort": "排队追加",
+    "steerShort": "调整下一步",
+    "help": "消息发送说明",
     "pending": "已排队 — 尚未送达",
     "notDelivered": "未送达",
     "recover": "恢复到草稿",

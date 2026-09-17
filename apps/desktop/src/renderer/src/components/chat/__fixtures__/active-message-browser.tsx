@@ -1,9 +1,10 @@
 import { initI18n } from '@open-codesign/i18n';
 import type { ActiveRunMessageInputV1, ActiveRunMessageV1 } from '@open-codesign/shared';
-import '@open-codesign/ui/tokens.css';
+import '../../../index.css';
 import { createRoot } from 'react-dom/client';
 import type { CodesignApi } from '../../../../../preload';
 import { useCodesignStore } from '../../../store';
+import { ErrorDetails } from '../ErrorDetails';
 import { PromptInput } from '../PromptInput';
 
 const calls: ActiveRunMessageInputV1[] = [];
@@ -16,6 +17,7 @@ const pending = new Map<
 >();
 const rows = new Map<string, ActiveRunMessageV1>();
 let generateCalls = 0;
+const generatedPrompts: string[] = [];
 let cancelCalls = 0;
 const get = useCodesignStore.getState;
 
@@ -42,10 +44,10 @@ window.codesign = {
   },
 } as unknown as CodesignApi;
 
-await initI18n('en');
+await initI18n(new URLSearchParams(window.location.search).get('locale') ?? 'en');
 useCodesignStore.setState({
   currentDesignId: 'browser-design',
-  isGenerating: true,
+  isGenerating: !new URLSearchParams(window.location.search).has('idle'),
   activeGenerationId: 'browser-run',
   generatingDesignId: 'browser-design',
   generationStage: 'thinking',
@@ -59,8 +61,11 @@ window.activeMessageFixture = {
     return {
       calls,
       generateCalls,
+      generatedPrompts,
       cancelCalls,
       draft: get().composerDrafts['browser-design'] ?? '',
+      currentDesignId: get().currentDesignId,
+      drafts: get().composerDrafts,
       rows: get().activeMessagesByDesign['browser-design'] ?? [],
       toasts: get().toasts.map((toast) => ({ title: toast.title, description: toast.description })),
       files: get().inputFiles,
@@ -108,14 +113,20 @@ window.activeMessageFixture = {
       referenceUrl: kind === 'url' ? 'https://example.invalid/reference' : '',
     });
   },
+  switchDesign(designId) {
+    useCodesignStore.setState({ currentDesignId: designId });
+  },
 };
 
 export interface ActiveMessageBrowserFixture {
   snapshot: () => {
     calls: ActiveRunMessageInputV1[];
     generateCalls: number;
+    generatedPrompts: string[];
     cancelCalls: number;
     draft: string;
+    currentDesignId: string | null;
+    drafts: Record<string, string>;
     rows: ActiveRunMessageV1[];
     toasts: Array<{ title: string; description?: string | undefined }>;
     files: Array<{ name: string; path: string; size: number }>;
@@ -125,6 +136,7 @@ export interface ActiveMessageBrowserFixture {
   reject: (index: number) => void;
   settleUndelivered: (index: number, eventBeforeAck: boolean) => void;
   setContext: (kind: 'file' | 'comment' | 'url' | null) => void;
+  switchDesign: (designId: string) => void;
 }
 declare global {
   interface Window {
@@ -136,12 +148,39 @@ function Fixture() {
   const isGenerating = useCodesignStore((state) => state.isGenerating);
   const toasts = useCodesignStore((state) => state.toasts);
   return (
-    <aside style={{ width: 420, height: 800 }}>
+    <aside
+      className="codesign-chat-sidebar"
+      style={{
+        width: 'min(100vw, 420px)',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+      }}
+    >
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        <input aria-label="Other field" />
+        {new URLSearchParams(window.location.search).has('diagnostic') ? (
+          <ErrorDetails
+            message={`Validation failed for tool "preview":\n- steps: must not have more than 16 items\nReceived arguments: ${JSON.stringify(
+              {
+                path: 'App.jsx',
+                steps: Array.from({ length: 17 }, (_, index) => ({
+                  action: 'assert',
+                  selector: `#check-${index}`,
+                })),
+              },
+            )}`}
+          />
+        ) : null}
+      </div>
       <div className="codesign-sidebar-composer">
         <PromptInput
           isGenerating={isGenerating}
           onSubmit={(prompt) => {
-            void get().sendPrompt({ prompt });
+            generateCalls++;
+            generatedPrompts.push(prompt);
+            useCodesignStore.setState({ isGenerating: true, generationStage: 'sending' });
           }}
           onActiveSubmit={get().sendActiveMessage}
           onCancel={get().cancelGeneration}

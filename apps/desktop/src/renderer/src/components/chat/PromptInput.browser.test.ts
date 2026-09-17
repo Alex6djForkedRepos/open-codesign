@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { findSystemChrome } from '@open-codesign/exporters';
 import puppeteer, { type Browser, type Page } from 'puppeteer-core';
@@ -14,7 +15,8 @@ describe.skipIf(!chrome)('active composer fake gate in system Chrome', () => {
   let server: ViteDevServer;
   let page: Page;
   let endpoint: string;
-  const profile = resolve(process.cwd(), `.codesign-browser-profile-${randomUUID()}`);
+  // Browser profile writes must not trigger Vite/Tailwind source watching.
+  const profile = resolve(tmpdir(), `codesign-active-composer-${randomUUID()}`);
   const externalRequests: string[] = [];
   const browserErrors: string[] = [];
 
@@ -23,14 +25,19 @@ describe.skipIf(!chrome)('active composer fake gate in system Chrome', () => {
     server = await createServer({
       configFile: false,
       root: process.cwd(),
+      logLevel: 'error',
       esbuild: { jsx: 'automatic' },
-      server: { host: '127.0.0.1', port: 0 },
+      server: {
+        host: '127.0.0.1',
+        port: 0,
+        watch: { ignored: ['**/.codesign-browser-profile-*/**'] },
+      },
       plugins: [
         {
           name: 'active-message-component-fixture',
           configureServer(vite) {
             vite.middlewares.use((req, res, next) => {
-              if (req.url !== '/active-message-fixture') return next();
+              if (req.url?.split('?')[0] !== '/active-message-fixture') return next();
               res.setHeader('Content-Type', 'text/html');
               res.end(
                 '<!doctype html><html><body><div id="root"></div><script type="module" src="/src/renderer/src/components/chat/__fixtures__/active-message-browser.tsx"></script></body></html>',
@@ -90,13 +97,213 @@ describe.skipIf(!chrome)('active composer fake gate in system Chrome', () => {
   }
   async function clickButton(text: string) {
     for (const button of await page.$$('button')) {
-      if ((await button.evaluate((node) => node.textContent)) === text) {
+      if (
+        (await button.evaluate((node) => node.getAttribute('aria-label') ?? node.textContent)) ===
+        text
+      ) {
         await button.click();
         return;
       }
     }
     throw new Error(`Missing button: ${text}`);
   }
+
+  it.each([
+    'en',
+    'zh-CN',
+    'es',
+    'pt-BR',
+  ])('keeps %s running controls compact with production CSS at narrow widths', async (locale) => {
+    for (const width of [260, 300]) {
+      await page.setViewport({ width, height: 540, deviceScaleFactor: 1.5 });
+      await page.goto(`${endpoint}?locale=${locale}`);
+      await page.waitForSelector('textarea');
+      const emptyHeight = await page.$eval('form', (node) => node.getBoundingClientRect().height);
+      expect(emptyHeight).toBeLessThanOrEqual(130);
+      expect(await page.$('.codesign-active-message-actions')).toBeNull();
+      expect(await page.$('.codesign-active-message-help')).toBeNull();
+      expect(await page.$eval('textarea', (node) => node.value)).toBe('');
+      expect(await page.$('form button[type="button"]')).not.toBeNull();
+      await page.type('textarea', ' ');
+      expect(await page.$('.codesign-active-message-actions')).toBeNull();
+      await page.type('textarea', 'Additional instruction');
+      await page.waitForSelector('.codesign-active-message-actions');
+      const geometry = await page.evaluate(() => {
+        const form = document.querySelector('form');
+        const textarea = document.querySelector('textarea');
+        const help = document.querySelector<HTMLDetailsElement>('.codesign-active-message-help');
+        if (!form || !textarea || !help) throw new Error('Missing composer');
+        return {
+          height: form.getBoundingClientRect().height,
+          width: form.getBoundingClientRect().width,
+          scrollWidth: form.scrollWidth,
+          font: getComputedStyle(textarea).fontSize,
+          helpOpen: help.open,
+          helpHeight: help.querySelector('summary')?.getBoundingClientRect().height,
+          buttons: [...document.querySelectorAll('.codesign-active-message-button')].map(
+            (button) => ({
+              height: button.getBoundingClientRect().height,
+              right: button.getBoundingClientRect().right,
+              font: getComputedStyle(button).fontSize,
+            }),
+          ),
+        };
+      });
+      expect(geometry.height).toBeLessThanOrEqual(180);
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(Math.ceil(geometry.width));
+      expect(geometry.font).toBe('15px');
+      expect(geometry.helpOpen).toBe(false);
+      expect(geometry.helpHeight).toBe(32);
+      expect(
+        await page.$eval('.codesign-active-message-help-panel', (node) => node.checkVisibility()),
+      ).toBe(false);
+      expect(geometry.buttons).toHaveLength(2);
+      for (const button of geometry.buttons) {
+        expect(button.height).toBe(40);
+        expect(button.right).toBeLessThanOrEqual(width);
+        expect(button.font).toBe('13px');
+      }
+      await page.focus('.codesign-active-message-help > summary');
+      await page.keyboard.press('Enter');
+      expect(
+        await page.$eval('.codesign-active-message-help', (node) => node.hasAttribute('open')),
+      ).toBe(true);
+      const expanded = await page.evaluate(() => ({
+        formHeight: document.querySelector('form')?.getBoundingClientRect().height,
+        panelHeight: document
+          .querySelector('.codesign-active-message-help-panel')
+          ?.getBoundingClientRect().height,
+      }));
+      expect(expanded.formHeight).toBe(geometry.height);
+      expect(expanded.panelHeight).toBeLessThanOrEqual(216);
+      await page.focus('.codesign-active-message-help-panel');
+      await page.keyboard.press('Escape');
+      expect(
+        await page.$eval('.codesign-active-message-help', (node) => node.hasAttribute('open')),
+      ).toBe(false);
+      expect(
+        await page.$eval(
+          '.codesign-active-message-help > summary',
+          (node) => document.activeElement === node,
+        ),
+      ).toBe(true);
+      await page.focus('textarea');
+      await page.keyboard.down('Control');
+      await page.keyboard.press('A');
+      await page.keyboard.up('Control');
+      await page.keyboard.press('Backspace');
+      await page.waitForSelector('.codesign-active-message-actions', { hidden: true });
+      expect(await page.$('.codesign-active-message-help')).toBeNull();
+      expect(await page.$eval('form', (node) => node.getBoundingClientRect().height)).toBe(
+        emptyHeight,
+      );
+      expect(await page.$eval('textarea', (node) => document.activeElement === node)).toBe(true);
+      expect((await snapshot()).calls).toHaveLength(0);
+      expect((await snapshot()).draft).toBe('');
+    }
+  }, 30_000);
+
+  it('normal Send clears the selected draft and enters a compact empty running state', async () => {
+    await page.goto(`${endpoint}?idle=1`);
+    await page.waitForSelector('textarea');
+    await page.evaluate(() => window.activeMessageFixture.switchDesign('other-design'));
+    await page.type('textarea', 'Keep the other design draft');
+    await page.evaluate(() => window.activeMessageFixture.switchDesign('browser-design'));
+    await page.type('textarea', '  Original prompt  ');
+    await page.click('button[type="submit"]');
+    await page.waitForSelector('button[aria-label^="Stop"]');
+    const state = await snapshot();
+    expect(state.generateCalls).toBe(1);
+    expect(state.generatedPrompts).toEqual(['Original prompt']);
+    expect(state.draft).toBe('');
+    expect(state.drafts['other-design']).toBe('Keep the other design draft');
+    expect(state.calls).toHaveLength(0);
+    expect(state.rows).toHaveLength(0);
+    expect(await page.$('.codesign-active-message-actions')).toBeNull();
+    expect(await page.$('.codesign-active-message-help')).toBeNull();
+    expect(
+      await page.$eval('form', (node) => node.getBoundingClientRect().height),
+    ).toBeLessThanOrEqual(130);
+  });
+
+  it.each([
+    'Queue follow-up',
+    'Steer next step',
+  ])('restores textarea focus when accepted %s removes the focused control', async (label) => {
+    await page.type('textarea', 'Explicit additional message');
+    await clickButton(label);
+    await page.waitForFunction(() => window.activeMessageFixture.snapshot().calls.length === 1);
+    await page.evaluate(() => window.activeMessageFixture.accept(0));
+    await page.waitForSelector('.codesign-active-message-actions', { hidden: true });
+    expect((await snapshot()).draft).toBe('');
+    expect(await page.$eval('textarea', (node) => document.activeElement === node)).toBe(true);
+    await page.keyboard.type('Next instruction');
+    expect((await snapshot()).draft).toBe('Next instruction');
+    expect(await page.$('.codesign-active-message-help')).not.toBeNull();
+    expect(
+      await page.$eval('.codesign-active-message-help', (node) => node.hasAttribute('open')),
+    ).toBe(false);
+  });
+
+  it('does not steal focus after the user moves elsewhere before acceptance', async () => {
+    await page.type('textarea', 'Explicit additional message');
+    await clickButton('Steer next step');
+    await page.waitForFunction(() => window.activeMessageFixture.snapshot().calls.length === 1);
+    await page.type('input[aria-label="Other field"]', 'Unrelated edit');
+    await page.evaluate(() => window.activeMessageFixture.accept(0));
+    await page.waitForSelector('.codesign-active-message-actions', { hidden: true });
+    expect(await page.$eval('input', (node) => document.activeElement === node)).toBe(true);
+    expect(await page.$eval('input', (node) => node.value)).toBe('Unrelated edit');
+  });
+
+  it('isolates design drafts and never focuses the new composer on a late ACK', async () => {
+    await page.type('textarea', 'Message for the original design');
+    await clickButton('Steer next step');
+    await page.waitForFunction(() => window.activeMessageFixture.snapshot().calls.length === 1);
+    await page.focus('input[aria-label="Other field"]');
+    await page.evaluate(() => window.activeMessageFixture.switchDesign('other-design'));
+    await page.waitForSelector('.codesign-active-message-actions', { hidden: true });
+    expect(await page.$eval('textarea', (node) => document.activeElement === node)).toBe(false);
+    await page.type('textarea', 'New design draft');
+    await page.type('input[aria-label="Other field"]', 'Independent focus');
+    await page.evaluate(() => window.activeMessageFixture.accept(0));
+    await page.waitForFunction(() => window.activeMessageFixture.snapshot().draft === '');
+    expect((await snapshot()).drafts['other-design']).toBe('New design draft');
+    expect(await page.$eval('textarea', (node) => node.value)).toBe('New design draft');
+    expect(await page.$eval('input', (node) => document.activeElement === node)).toBe(true);
+  });
+
+  it('keeps full validation arguments behind a bounded keyboard-accessible disclosure', async () => {
+    await page.setViewport({ width: 300, height: 540 });
+    await page.goto(`${endpoint}?diagnostic=1`);
+    await page.waitForSelector('.codesign-error-details');
+    expect(await page.$eval('.codesign-error-details', (node) => node.hasAttribute('open'))).toBe(
+      false,
+    );
+    expect(
+      await page.$eval('.codesign-error-details summary', (node) => node.textContent),
+    ).toContain('must not have more than 16 items');
+    expect(
+      await page.$eval('.codesign-error-details summary', (node) => node.textContent),
+    ).not.toContain('Received arguments:');
+    await page.focus('.codesign-error-details summary');
+    await page.keyboard.press('Enter');
+    const detail = await page.$eval('.codesign-error-details pre', (node) => ({
+      height: node.getBoundingClientRect().height,
+      text: node.textContent,
+      scrollHeight: node.scrollHeight,
+      clientHeight: node.clientHeight,
+    }));
+    expect(detail.height).toBeLessThanOrEqual(162);
+    expect(detail.text).toContain('#check-16');
+    expect(detail.scrollHeight).toBeGreaterThan(detail.clientHeight);
+    await page.focus('.codesign-error-details pre');
+    await page.keyboard.press('End');
+    await page.waitForFunction(
+      () => (document.querySelector('.codesign-error-details pre')?.scrollTop ?? 0) > 0,
+    );
+    expect((await snapshot()).calls).toHaveLength(0);
+  });
 
   it('queues Enter, steers with the secondary control, and leaves Stop independent', async () => {
     await page.type('textarea', 'Queued from real Chrome');

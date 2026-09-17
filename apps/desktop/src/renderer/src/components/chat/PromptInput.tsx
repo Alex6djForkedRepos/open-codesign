@@ -1,7 +1,7 @@
 import { useT } from '@open-codesign/i18n';
 import type { ActiveRunMessageV1 } from '@open-codesign/shared';
 import { Tooltip } from '@open-codesign/ui';
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, CircleHelp, Square } from 'lucide-react';
 import {
   type ClipboardEvent,
   type DragEvent,
@@ -25,6 +25,7 @@ import {
   dataTransferFilesToWorkspaceFiles,
 } from '../../lib/file-ingest';
 import { useCodesignStore } from '../../store';
+import './PromptInput.css';
 
 const MAX_TEXTAREA_ROWS = 10;
 
@@ -122,8 +123,10 @@ function resizeTextarea(el: HTMLTextAreaElement): void {
     el.selectionEnd === el.value.length &&
     el.scrollHeight - el.clientHeight - scrollTop <= rowHeight;
   el.style.height = 'auto';
-  el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-  el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  const contentHeight =
+    el.value.length === 0 ? rowHeight * el.rows + verticalPadding : el.scrollHeight;
+  el.style.height = `${Math.min(contentHeight, maxHeight)}px`;
+  el.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
   el.scrollTop = followEnd ? el.scrollHeight : scrollTop;
 }
 
@@ -268,6 +271,9 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
 
   function submitActive(mode: ActiveRunMessageV1['mode']): void {
     if (!prompt.trim() || sending || !onActiveSubmit) return;
+    const focused = taRef.current?.ownerDocument.activeElement;
+    // Move focus before disabling/removing the clicked action; a late ACK must never move it.
+    if (focused?.matches('.codesign-active-message-button')) taRef.current?.focus();
     // The store reports rejection through the existing toast path and retains the draft.
     void onActiveSubmit(prompt, mode).catch(() => {});
   }
@@ -350,31 +356,66 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
             placeholder={t('chat.placeholderRich')}
             aria-label={t('chat.placeholderRich')}
             rows={2}
-            className="codesign-prompt-textarea block w-full min-w-0 resize-none appearance-none border-0 bg-transparent py-[var(--space-1)] text-[var(--text-base)] leading-[var(--leading-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] shadow-none outline-none focus:outline-none focus:ring-0"
+            className="codesign-prompt-textarea block w-full min-w-0 resize-none appearance-none border-0 bg-transparent py-[var(--space-1)] text-[length:var(--text-base)] leading-[var(--leading-body)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] shadow-none outline-none focus:outline-none focus:ring-0"
             style={{ fontFamily: 'var(--font-sans)' }}
           />
         </div>
-        {isGenerating && onActiveSubmit ? (
-          <div className="px-[var(--space-3)] text-[var(--text-sm)] text-[var(--color-text-muted)]">
-            <p>{t('activeMessages.boundary')}</p>
-            <p>{t('activeMessages.textOnly')}</p>
-            <div className="flex flex-wrap gap-[var(--space-2)] py-[var(--space-2)]">
-              <button
-                type="submit"
-                disabled={!canSend}
-                className="rounded-[var(--radius-md)] bg-[var(--color-accent)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--color-on-accent)] disabled:opacity-50"
+        {isGenerating && onActiveSubmit && prompt.trim().length > 0 ? (
+          <div className="codesign-active-message-actions">
+            <button
+              type="submit"
+              disabled={!canSend}
+              aria-label={t('activeMessages.queue')}
+              title={t('activeMessages.queue')}
+              className="codesign-active-message-button codesign-active-message-primary"
+            >
+              {t('activeMessages.queueShort')}
+            </button>
+            <button
+              type="button"
+              disabled={!canSend}
+              aria-label={t('activeMessages.steer')}
+              title={t('activeMessages.steer')}
+              onClick={() => submitActive('steer')}
+              className="codesign-active-message-button"
+            >
+              {t('activeMessages.steerShort')}
+            </button>
+            <details
+              className="codesign-active-message-help"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                  event.currentTarget.open = false;
+                }
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === 'Escape' &&
+                  !event.nativeEvent.isComposing &&
+                  event.keyCode !== 229 &&
+                  event.currentTarget.open
+                ) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector('summary')?.focus();
+                }
+              }}
+            >
+              <summary aria-label={t('activeMessages.help')} title={t('activeMessages.help')}>
+                <CircleHelp size={16} aria-hidden="true" />
+              </summary>
+              <div
+                className="codesign-active-message-help-panel"
+                role="region"
+                aria-label={t('activeMessages.help')}
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: The bounded help region must support keyboard scrolling.
+                tabIndex={0}
               >
-                {t('activeMessages.queue')}
-              </button>
-              <button
-                type="button"
-                disabled={!canSend}
-                onClick={() => submitActive('steer')}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--color-text-primary)] disabled:opacity-50"
-              >
-                {t('activeMessages.steer')}
-              </button>
-            </div>
+                <p>{t('activeMessages.boundary')}</p>
+                <p>{t('activeMessages.textOnly')}</p>
+              </div>
+            </details>
           </div>
         ) : null}
         <div className="codesign-prompt-actions flex items-center justify-between gap-[var(--space-2)] p-[var(--space-2)]">
@@ -382,7 +423,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
           {runningLabel ? (
             <div
               aria-live="polite"
-              className="flex min-w-0 flex-1 items-center gap-[var(--space-2)] text-[var(--text-sm)] text-[var(--color-text-muted)]"
+              className="flex min-w-0 flex-1 items-center gap-[var(--space-2)] text-[length:var(--text-sm)] text-[var(--color-text-muted)]"
             >
               <span className="truncate">{runningLabel}</span>
               <span

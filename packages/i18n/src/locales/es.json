@@ -2,6 +2,9 @@
   "activeMessages": {
     "queue": "Encolar seguimiento",
     "steer": "Orientar el siguiente paso",
+    "queueShort": "Encolar",
+    "steerShort": "Orientar",
+    "help": "Ayuda sobre el envío de mensajes",
     "pending": "En cola — aún no entregado",
     "notDelivered": "No entregado",
     "recover": "Recuperar como borrador",

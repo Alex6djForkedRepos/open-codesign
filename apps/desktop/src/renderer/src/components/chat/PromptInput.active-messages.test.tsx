@@ -35,6 +35,8 @@ vi.mock('../../store', async () => {
 });
 
 interface ElementProps {
+  'aria-label'?: string;
+  className?: string;
   children?: ReactNode;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onCompositionStart?: () => void;
@@ -74,6 +76,32 @@ beforeEach(() => {
 });
 
 describe('active composer callbacks', () => {
+  it.each([
+    '',
+    ' \n  ',
+  ])('does not offer or submit active messages for a blank draft %j', (draft) => {
+    useCodesignStore.setState({ composerDrafts: { a: draft, b: 'Other draft' } });
+    const active = vi.fn(async () => {});
+    const normal = vi.fn();
+    const tree = PromptInput({
+      onSubmit: normal,
+      onActiveSubmit: active,
+      onCancel: vi.fn(),
+      isGenerating: true,
+    });
+    expect(
+      findElement(tree, (element) => element.props.className === 'codesign-active-message-actions'),
+    ).toBeUndefined();
+    expect(findElement(tree, (element) => element.type === 'details')).toBeUndefined();
+    expect(
+      findElement(tree, (element) => element.props['aria-label']?.startsWith('Stop') === true),
+    ).toBeDefined();
+    findElement(tree, (element) => element.type === 'textarea')?.props.onKeyDown?.(keyEvent());
+    expect(active).not.toHaveBeenCalled();
+    expect(normal).not.toHaveBeenCalled();
+    expect(useCodesignStore.getState().composerDrafts).toEqual({ a: draft, b: 'Other draft' });
+  });
+
   it.each([
     { key: 'Enter' },
     { key: 'Enter', ctrlKey: true },
@@ -127,7 +155,7 @@ describe('active composer callbacks', () => {
     });
     findElement(
       tree,
-      (element) => element.type === 'button' && element.props.children === 'Steer next step',
+      (element) => element.type === 'button' && element.props['aria-label'] === 'Steer next step',
     )?.props.onClick?.();
     expect(active).toHaveBeenCalledWith('  Follow up  ', 'steer');
     expect(cancel).not.toHaveBeenCalled();
