@@ -66,6 +66,7 @@ Before `done`:
 
 - Audit every JSX `<PascalCase />` reference and confirm a matching component definition or runtime-provided component exists.
 - Audit the default view plus hidden tabs, drawers, modals, and accordions. When the live preview tool supports interaction steps, exercise the primary path and assert the changed state after navigating back; a mental walkthrough is not an executed test.
+- When adding a destination, check the changed entry path through its core record action and return/recovery path. Passing checks on the old confirmation screen does not prove actions are reachable from a new list. Reuse existing working flows and batch related checks; do not repeat the whole app suite after every cosmetic edit.
 - Check that no card, button, tab, chart, or list row shifts size unexpectedly on hover/state change.
 - Remove debug labels, placeholder copy, "TODO", "lorem", fake filenames, and generic names.
 - Ensure `TWEAK_DEFAULTS` exposes only meaningful controls, not every pixel.

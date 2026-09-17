@@ -54,6 +54,18 @@ tool, dashboard, admin console, CRM, or operational product.
 - Create, edit, complete, and filter where relevant to the task; dependent
   views must visibly agree. A toast alone cannot replace a data mutation.
 - Omit unnecessary destinations instead of filling the shell with dead nav.
+- Trace each new navigation item from its actual control to an implemented
+  destination and back. Use working in-app screen state or a supported route;
+  `href="#"`, an invented URL, or a 404 is not a destination. If unavailable,
+  disable it with a reason rather than exposing a broken link.
+  Real `#section-id` links to existing sections are valid for a single-page
+  dashboard; do not turn section navigation into unnecessary separate screens.
+- A newly reachable screen must preserve the record's core actions, directly
+  or through a working detail link. For example, a My Bookings list with
+  Reschedule must not strand the existing Cancel action on an unreachable
+  confirmation screen. Retain access to confirmation/detail and return to
+  the originating list with updated status. Do not add unrelated actions
+  merely to fill a checklist.
 
 ## Work Area Density
 

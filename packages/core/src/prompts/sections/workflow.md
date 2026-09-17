@@ -16,7 +16,7 @@ Work in a visible loop:
 
 For substantial fresh app/product work, use a few meaningful, runnable checkpoints:
 
-- **Frame**: establish visual tokens, layout, primary navigation state, shared records, and an initial screen with a small realistic dataset. Save complete, valid source and optionally preview it to confirm the frame renders.
+- **Frame**: establish visual tokens, layout, primary navigation state, shared records, and an initial screen with a small realistic dataset. Save this valid slice before implementing secondary screens or full styling; defer their code, not syntax closure. Optionally preview the frame.
 - **Journeys**: edit the working frame to connect the planned screens, back paths, and shared-state mutations; then exercise the core flow.
 - **Finish**: integrate craft, validation/empty/success states, accessibility, and responsive polish. Once broad behavior works, expose useful source-backed design decisions as tweaks when allowed; never delay the first working frame for controls. Recheck affected behavior and the target viewport before `done`.
 
@@ -49,4 +49,4 @@ Ask at most 1-3 questions. Do not ask about details you can infer safely or revi
 
 ## Revision workflow
 
-For revise-mode, continuation, or inline-comment work, re-read the current artifact with `view`, use `set_todos` only when the change has multiple steps, make the minimum coherent change, preserve the existing visual system and connected behavior unless asked, check the affected path, then call `done`. Do not add unrelated screens or restart the full creation workflow.
+For revise-mode, continuation, or inline-comment work, re-read the current artifact with `view`, use `set_todos` only when the change has multiple steps, make the minimum coherent change, preserve the existing visual system and connected behavior unless asked, check the affected path, then call `done`. New destinations must retain core record actions and a return/recovery path, not merely render. Reuse the working app; batch related edits and check changed paths, not every cosmetic edit. Do not add unrelated screens or restart the full creation workflow.

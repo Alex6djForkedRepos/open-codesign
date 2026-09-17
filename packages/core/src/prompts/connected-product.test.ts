@@ -70,6 +70,8 @@ describe('connected product prompt contract', () => {
       'write this small renderable checkpoint early',
       'primary navigation state, shared records, and an initial screen',
       'a small realistic dataset',
+      'Save this valid slice before implementing secondary screens or full styling',
+      'defer their code, not syntax closure',
       'edit the working frame',
       'then exercise the core flow',
       'Recheck affected behavior and the target viewport before `done`',
@@ -86,6 +88,18 @@ describe('connected product prompt contract', () => {
     }
     expect(prompt).not.toContain('Preview the complete pass');
     expect(prompt).not.toContain('focused edits to a complete first pass, then `preview(App.jsx)`');
+  });
+
+  it('checks newly reachable record actions without restarting the working app', () => {
+    const prompt = composeSystemPrompt({ mode: 'revise' });
+    expect(prompt).toContain(
+      'New destinations must retain core record actions and a return/recovery path, not merely render',
+    );
+    expect(prompt).toContain(
+      'Reuse the working app; batch related edits and check changed paths, not every cosmetic edit',
+    );
+    expect(prompt).toContain('make the minimum coherent change');
+    expect(prompt).not.toContain('My Bookings');
   });
 
   it('prioritizes implemented design decisions without delaying the first frame', () => {
@@ -160,6 +174,16 @@ describe('connected product builtin method contracts', () => {
         'stable IDs and derived counts',
         'Returning from a detail',
         'Omit unnecessary destinations',
+        'Trace each new navigation item from its actual control',
+        '`href="#"`, an invented URL, or a 404 is not a destination',
+        'disable it with a reason',
+        'Real `#section-id` links to existing sections are valid',
+        'do not turn section navigation into unnecessary separate screens',
+        'directly',
+        'through a working detail link',
+        'must not strand the existing Cancel action',
+        'return to',
+        'the originating list with updated status',
       ],
       'mobile-mock': [
         'shared app-root',
@@ -188,6 +212,8 @@ describe('connected product builtin method contracts', () => {
         'enum options are plain strings',
         'Structural JSX may consume `TWEAK_DEFAULTS`',
         'Do not copy this declaration into',
+        'Passing checks on the old confirmation screen does not prove actions are reachable from a new list',
+        'do not repeat the whole app suite after every cosmetic edit',
       ],
       'design-system-baton': [
         'Treat current user-selected tweak values as design decisions',
