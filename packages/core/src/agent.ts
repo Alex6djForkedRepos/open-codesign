@@ -655,6 +655,7 @@ function wrapDoneState(
   tool: AgentTool<TSchema, unknown>,
   resourceState: ResourceStateV1,
   onRepairLimitReached?: (() => void) | undefined,
+  onDone?: ((details: DoneDetails) => void) | undefined,
 ): AgentTool<TSchema, unknown> {
   let errorRounds = 0;
   return {
@@ -664,6 +665,7 @@ function wrapDoneState(
       const result = await tool.execute(id, params, signal);
       const details = result.details as DoneDetails | undefined;
       if (details) {
+        onDone?.(details);
         recordDone(resourceState, {
           status: details.status,
           path: details.path,
@@ -699,7 +701,7 @@ function formatDoneRepairLimitText(details: DoneDetails): string {
     'has_errors',
     `Repair limit reached after ${MAX_DONE_ERROR_ROUNDS} done() error rounds.`,
     'STOP. Do not call done, preview, edit, or any other tool again.',
-    'The host will keep the latest artifact when possible and surface these warnings to the user.',
+    'The host will keep the workspace files and report verification failure. Do not claim the design is ready.',
     '',
     'Remaining verifier output:',
     ...remainingErrors,
@@ -1025,6 +1027,7 @@ export async function generateViaAgent(
   const resourceState = cloneResourceState(input.initialResourceState);
   const trackedFs = deps.fs ? trackFsMutations(deps.fs, resourceState) : undefined;
   let doneRepairLimitReached = false;
+  let lastDoneDetails: DoneDetails | undefined;
   const skillsBuiltinDir = input.templatesRoot
     ? path.join(input.templatesRoot, 'skills')
     : undefined;
@@ -1149,6 +1152,9 @@ export async function generateViaAgent(
           resourceState,
           () => {
             doneRepairLimitReached = true;
+          },
+          (details) => {
+            lastDoneDetails = details;
           },
         ),
         runProtocolState,
@@ -1573,17 +1579,39 @@ export async function generateViaAgent(
 
   deps.onComplete?.(agent.state.messages);
 
+  if (lastDoneDetails?.status === 'has_errors') {
+    const remaining = lastDoneDetails.errors
+      .slice(0, 8)
+      .map((error) => `${error.message}${error.lineno ? ` (line ${error.lineno})` : ''}`)
+      .join('\n');
+    const message = [
+      `Design verification failed for ${lastDoneDetails.path}.`,
+      ...(doneRepairLimitReached
+        ? [`The repair limit was reached after ${MAX_DONE_ERROR_ROUNDS} done() error rounds.`]
+        : []),
+      'The workspace files have been kept, but the design is not ready. Fix the errors and retry.',
+      remaining,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    log.error('[generate] step=verify.fail', {
+      ...ctx,
+      path: lastDoneDetails.path,
+      errorCount: lastDoneDetails.errors.length,
+      repairLimitReached: doneRepairLimitReached,
+    });
+    throw new CodesignError(message, ERROR_CODES.GENERATION_INCOMPLETE);
+  }
+
   log.info('[generate] step=parse_response', ctx);
   const parseStart = Date.now();
-  const fullText = stoppedAfterDoneRepairLimit
-    ? `Stopped after ${MAX_DONE_ERROR_ROUNDS} done() error rounds. The latest artifact is available with warnings.`
-    : finalAssistant.content
-        .filter(
-          (c): c is { type: 'text'; text: string } =>
-            c.type === 'text' && typeof (c as { text?: unknown }).text === 'string',
-        )
-        .map((c) => c.text)
-        .join('');
+  const fullText = finalAssistant.content
+    .filter(
+      (c): c is { type: 'text'; text: string } =>
+        c.type === 'text' && typeof (c as { text?: unknown }).text === 'string',
+    )
+    .map((c) => c.text)
+    .join('');
 
   const collected: Collected = { text: fullText, artifacts: [] };
 

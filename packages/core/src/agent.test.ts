@@ -1043,12 +1043,51 @@ describe('generateViaAgent()', () => {
     );
   });
 
-  it('keeps the latest artifact when the agent stops on the done repair limit', async () => {
+  it.each([
+    { times: 1, stopReason: 'stop' as const },
+    { times: 3, stopReason: 'toolUse' as const },
+  ])('surfaces unresolved verification after $times attempts without deleting files', async ({
+    times,
+    stopReason,
+  }) => {
     scriptedAgent = {
-      assistantText: '',
-      stopReason: 'toolUse',
-      executeTool: { name: 'done', times: 3, params: { path: 'App.jsx' } },
+      assistantText: 'The design is ready.',
+      stopReason,
+      executeTool: { name: 'done', times, params: { path: 'App.jsx' } },
     };
+    const fs = makeStubFs({ 'App.jsx': HTML_WITH_MISSING_ALT, 'DESIGN.md': VALID_DESIGN_MD });
+    const onComplete = vi.fn();
+    const result = generateViaAgent(
+      {
+        prompt: 'design a meditation app',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+        initialResourceState: resourceState({ mutationSeq: 1 }),
+      },
+      { fs, onComplete },
+    );
+
+    await expect(result).rejects.toMatchObject({
+      code: ERROR_CODES.GENERATION_INCOMPLETE,
+      message: expect.stringContaining('<img> without alt attribute'),
+    });
+    if (times === 3) {
+      await expect(result).rejects.toThrow('repair limit was reached after 3');
+    }
+    expect(fs.view('App.jsx')?.content).toBe(HTML_WITH_MISSING_ALT);
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it('succeeds when a later done check verifies the repaired design', async () => {
+    scriptedAgent = {
+      assistantText: 'Verified.',
+      executeTool: { name: 'done', times: 2, params: { path: 'App.jsx' } },
+    };
+    const runtimeVerify = vi
+      .fn()
+      .mockResolvedValueOnce([{ message: 'Temporary render error' }])
+      .mockResolvedValueOnce([]);
     const result = await generateViaAgent(
       {
         prompt: 'design a meditation app',
@@ -1057,13 +1096,10 @@ describe('generateViaAgent()', () => {
         apiKey: 'sk-test',
         initialResourceState: resourceState({ mutationSeq: 1 }),
       },
-      { fs: makeStubFs({ 'App.jsx': HTML_WITH_MISSING_ALT, 'DESIGN.md': VALID_DESIGN_MD }) },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML, 'DESIGN.md': VALID_DESIGN_MD }), runtimeVerify },
     );
-
+    expect(result.resourceState?.lastDone?.status).toBe('ok');
     expect(result.artifacts).toHaveLength(1);
-    expect(result.message).toContain('Stopped after 3 done() error rounds');
-    expect(result.warnings).toEqual([expect.stringContaining('done() reported unresolved errors')]);
-    expect(result.resourceState?.lastDone?.status).toBe('has_errors');
   });
 
   it('blocks substantive file edits until set_todos has run for fresh multi-step work', async () => {
