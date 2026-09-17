@@ -171,6 +171,9 @@ describe('composeSystemPrompt()', () => {
     const tweak = composeSystemPrompt({ mode: 'tweak' });
     expect(tweak).toContain('EDITMODE');
     expect(tweak).toContain('Keys must match the existing `TWEAK_DEFAULTS` keys');
+    expect(tweak).toContain('keys during value edits');
+    expect(tweak).toContain('Add controls only when requested');
+    expect(tweak).toContain('`tweaks()` discovers, not binds');
     expect(create).not.toContain('Keys must match the existing `TWEAK_DEFAULTS` keys');
   });
 
