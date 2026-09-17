@@ -1,13 +1,6 @@
 import { useT } from '@open-codesign/i18n';
-import {
-  type EditmodeBlock,
-  type EditmodeTokens,
-  type EditmodeTokenValue,
-  parseEditmodeBlock,
-  parseTweakSchema,
-  type TokenSchemaEntry,
-  type TweakSchema,
-} from '@open-codesign/shared';
+import type { EditmodeTokens, EditmodeTokenValue, TokenSchemaEntry } from '@open-codesign/shared';
+import { inspectTweakSource } from '@open-codesign/shared';
 import { RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -152,15 +145,8 @@ export function TweakPanel({
   const mountedRef = useRef(true);
   const pendingRef = useRef(false);
 
-  const block: EditmodeBlock | null = useMemo(
-    () => (previewSource ? parseEditmodeBlock(previewSource) : null),
-    [previewSource],
-  );
-
-  const schema: TweakSchema | null = useMemo(
-    () => (previewSource ? parseTweakSchema(previewSource) : null),
-    [previewSource],
-  );
+  const tweakSource = useMemo(() => inspectTweakSource(previewSource ?? ''), [previewSource]);
+  const { block, schema } = tweakSource;
   // Live working copy — drives the UI and the postMessage stream to the iframe
   // without paying for a full srcdoc reload on every keystroke. Persistence
   // back into the workspace is debounced.
@@ -232,7 +218,7 @@ export function TweakPanel({
 
   if (!previewSource) return null;
   const entries = liveTokens ? Object.entries(liveTokens) : [];
-  const hasTokens = entries.length > 0;
+  const hasTokens = tweakSource.status === 'ready' && entries.length > 0;
 
   function postLive(tokens: EditmodeTokens): void {
     const win = iframeRef.current?.contentWindow;
@@ -322,8 +308,14 @@ export function TweakPanel({
   const resetText = t('tweaks.reset');
   const openLabel = t('tweaks.openLabel');
   const pickColorLabel = t('tweaks.pickColor');
-  const emptyTitle = t('tweaks.emptyTitle');
-  const emptyHint = t('tweaks.emptyHint');
+  const emptyTitle =
+    tweakSource.status === 'invalid' ? t('tweaks.invalidTitle') : t('tweaks.emptyTitle');
+  const emptyHint =
+    tweakSource.status === 'invalid'
+      ? t('tweaks.invalidHint')
+      : tweakSource.status === 'empty'
+        ? t('tweaks.declaredEmptyHint')
+        : t('tweaks.emptyHint');
   const countBadge = hasTokens ? String(entries.length) : '—';
 
   const panelBody = (
@@ -379,6 +371,12 @@ export function TweakPanel({
         </div>
       </div>
 
+      <div
+        className="break-all px-[var(--space-3)] pt-[var(--space-2)] text-[var(--text-xs)] text-[var(--color-text-muted)]"
+        title={source?.path}
+      >
+        {t('tweaks.sourceLabel')}: {source?.path ?? t('tweaks.currentPreview')}
+      </div>
       {hasTokens ? (
         <fieldset
           disabled={saving || isGenerating}
@@ -396,13 +394,21 @@ export function TweakPanel({
           ))}
         </fieldset>
       ) : (
-        <div className="flex flex-col items-start gap-[var(--space-1_5)] px-[var(--space-3)] py-[var(--space-3)]">
+        <div
+          role={tweakSource.status === 'invalid' ? 'alert' : 'status'}
+          className="flex flex-col items-start gap-[var(--space-1_5)] px-[var(--space-3)] py-[var(--space-3)]"
+        >
           <div className="text-[12px] font-medium text-[var(--color-text-primary)]">
             {emptyTitle}
           </div>
           <div className="text-[11px] leading-[var(--leading-snug)] text-[var(--color-text-muted)]">
             {emptyHint}
           </div>
+          {tweakSource.status === 'invalid' ? (
+            <p className="m-0 break-words text-[var(--text-xs)] text-[var(--color-error)]">
+              {tweakSource.error}
+            </p>
+          ) : null}
         </div>
       )}
     </div>

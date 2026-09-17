@@ -216,7 +216,12 @@
     "pickColor": "Pick color",
     "swatchAria": "{{key}} color",
     "emptyTitle": "No tweakable tokens",
-    "emptyHint": "The agent hasn't declared an EDITMODE block yet. Future generations will expose design tokens here."
+    "emptyHint": "This source has no EDITMODE controls. Ask the agent to expose useful controls in this file and connect them to the design. Controls in a separate starter do not affect this preview.",
+    "declaredEmptyHint": "This source declares an empty EDITMODE block. No controls are enabled. Ask for specific source-backed adjustments if you need them.",
+    "invalidTitle": "Tweak declaration needs repair",
+    "invalidHint": "Fix the declaration in this source before adjusting values: EDITMODE requires a flat JSON object with matching markers. TWEAK_SCHEMA, when present, must use supported control types.",
+    "sourceLabel": "Source",
+    "currentPreview": "Current preview"
   },
   "inspector": {
     "title": "Inspector",

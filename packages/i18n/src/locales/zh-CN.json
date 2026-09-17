@@ -216,7 +216,12 @@
     "pickColor": "选择颜色",
     "swatchAria": "{{key}} 颜色",
     "emptyTitle": "暂无可调 token",
-    "emptyHint": "Agent 还没有声明 EDITMODE 区块。下次生成时会自动暴露设计 token。"
+    "emptyHint": "此源文件没有 EDITMODE 控件。请让 Agent 在此文件中添加有用的调节项，并绑定到实际设计。独立 starter 中的控件不会影响当前预览。",
+    "declaredEmptyHint": "此源文件声明了空的 EDITMODE 区块，未启用控件。如需微调，请明确要求添加与源码绑定的调节项。",
+    "invalidTitle": "微调声明需要修复",
+    "invalidHint": "请先修复此文件中的声明：EDITMODE 必须是标记完整的扁平 JSON 对象；如有 TWEAK_SCHEMA，应使用受支持的控件类型。",
+    "sourceLabel": "源文件",
+    "currentPreview": "当前预览"
   },
   "inspector": {
     "title": "检查器",

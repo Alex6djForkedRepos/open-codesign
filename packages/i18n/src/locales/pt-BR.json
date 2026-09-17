@@ -216,7 +216,12 @@
     "pickColor": "Escolher cor",
     "swatchAria": "Cor {{key}}",
     "emptyTitle": "Nenhum token ajustável",
-    "emptyHint": "O agente ainda não declarou um bloco EDITMODE. Gerações futuras disponibilizarão tokens de design aqui."
+    "emptyHint": "Este arquivo não tem controles EDITMODE. Peça ao agente controles úteis neste arquivo, conectados ao design. Os controles de um modelo separado não afetam esta prévia.",
+    "declaredEmptyHint": "Este arquivo declara um bloco EDITMODE vazio. Nenhum controle está habilitado. Solicite ajustes específicos vinculados ao código se precisar.",
+    "invalidTitle": "A declaração de ajustes precisa de correção",
+    "invalidHint": "Corrija a declaração neste arquivo antes de ajustar valores: EDITMODE requer um objeto JSON simples com ambos os marcadores. TWEAK_SCHEMA deve usar tipos de controle compatíveis.",
+    "sourceLabel": "Arquivo",
+    "currentPreview": "Prévia atual"
   },
   "inspector": {
     "title": "Inspector",
