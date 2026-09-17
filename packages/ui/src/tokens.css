@@ -139,6 +139,7 @@
 
   /* Compact menu width (zoom dropdown, narrow option pickers) */
   --size-menu-compact: 6rem;
+  --size-menu-wide: 20rem;
 
   /* Hub sidebar (Designs hub left rail) */
   --size-hub-sidebar: 360px;

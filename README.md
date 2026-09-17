@@ -267,6 +267,8 @@ Add a `SKILL.md` to any project to teach the model your own taste.
 - **Generation cancellation** — stop mid-stream without losing prior turns
 
 ### Preview and workflow
+
+- **Readable preview controls** — Comment mode, zoom, and Export retain visible labels and wrap below file tabs when space is tight. Zoom and export menus stay inside the window; use arrow keys / Home / End to navigate, Enter to select, and Escape to close and return focus. Preview zoom changes the artifact's display scale, not the app's control sizes or the artifact's source dimensions.
 - **Phone / tablet / desktop preview** — true responsive frames, switch with one click
 - **Files panel** — inspect multi-file artifacts (HTML, CSS, JS) before export
 - **Instant design switching** — the last five designs keep their preview iframes alive, so Hub ↔ Workspace and sidebar navigation stay zero-delay
