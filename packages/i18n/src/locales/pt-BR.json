@@ -1074,7 +1074,19 @@
   "examples": {
     "tab": "Exemplos",
     "title": "Exemplos",
-    "subtitle": "Pontos de partida selecionados a dedo. Passe o cursor para pré-visualizar e depois insira o prompt no editor.",
+    "subtitle": "Comece com um prompt ou arquivos locais editáveis. As etiquetas indicam referências e funções solicitadas, não resultados verificados. As capas são ilustrações conceituais originais.",
+    "featuresLabel": "Arquivos e funções solicitadas",
+    "inputFiles": "{{count}} arquivos de entrada · ver lista",
+    "useDemoPack": "Usar pacote de exemplo",
+    "features": {
+      "local-assets": "Recursos locais",
+      "document-input": "Documentos",
+      "sketch-reference": "Esboço de referência",
+      "multi-screen": "Várias telas",
+      "shared-state": "Estado compartilhado",
+      "interactive-flow": "Fluxo interativo",
+      "responsive": "Responsivo"
+    },
     "empty": "Nenhum exemplo corresponde ao seu filtro.",
     "useThisPrompt": "Usar este prompt",
     "categories": {

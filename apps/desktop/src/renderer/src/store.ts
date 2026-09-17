@@ -344,7 +344,7 @@ export interface CodesignState {
   ensureCurrentDesign: () => Promise<void>;
   openNewDesignDialog: () => void;
   closeNewDesignDialog: () => void;
-  createNewDesign: (workspacePath?: string | null) => Promise<Design | null>;
+  createNewDesign: (workspacePath?: string | null, demoInputId?: string) => Promise<Design | null>;
   switchDesign: (id: string) => Promise<void>;
   renameCurrentDesign: (name: string) => Promise<void>;
   renameDesign: (id: string, name: string, options?: RenameDesignOptions) => Promise<void>;

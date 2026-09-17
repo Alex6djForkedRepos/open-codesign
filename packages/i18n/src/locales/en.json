@@ -1177,7 +1177,19 @@
   "examples": {
     "tab": "Examples",
     "title": "Examples",
-    "subtitle": "Hand-picked starting points. Hover to preview, then drop the prompt into the composer.",
+    "subtitle": "Start from a prompt or editable local inputs. Tags describe supplied references and requested behavior, not verified results. Covers are original concept illustrations.",
+    "featuresLabel": "Inputs and requested features",
+    "inputFiles": "{{count}} input files · inspect list",
+    "useDemoPack": "Use demo pack",
+    "features": {
+      "local-assets": "Local assets",
+      "document-input": "Document input",
+      "sketch-reference": "Sketch reference",
+      "multi-screen": "Multiple screens",
+      "shared-state": "Shared state",
+      "interactive-flow": "Interactive flow",
+      "responsive": "Responsive"
+    },
     "empty": "No examples match your filter.",
     "useThisPrompt": "Use this prompt",
     "categories": {

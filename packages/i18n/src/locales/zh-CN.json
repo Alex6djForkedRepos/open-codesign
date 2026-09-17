@@ -1173,7 +1173,19 @@
   "examples": {
     "tab": "示例",
     "title": "示例",
-    "subtitle": "精选的起点。悬停预览，再把提示词带回输入框。",
+    "subtitle": "从提示词或可编辑的本地资料开始。标签说明所提供的参考与期望功能，不代表已验证的生成结果。封面为原创概念插画。",
+    "featuresLabel": "输入资料与期望功能",
+    "inputFiles": "{{count}} 份输入文件 · 查看列表",
+    "useDemoPack": "使用示例资料包",
+    "features": {
+      "local-assets": "本地素材",
+      "document-input": "文档输入",
+      "sketch-reference": "草图参考",
+      "multi-screen": "多页面",
+      "shared-state": "共享状态",
+      "interactive-flow": "交互流程",
+      "responsive": "响应式"
+    },
     "empty": "没有匹配该分类的示例。",
     "useThisPrompt": "使用此提示",
     "categories": {

@@ -1112,7 +1112,19 @@
   "examples": {
     "tab": "Ejemplos",
     "title": "Ejemplos",
-    "subtitle": "Puntos de partida seleccionados a mano. Pasa el cursor para previsualizar, luego suelta la instrucción en el editor.",
+    "subtitle": "Empieza con una instrucción o archivos locales editables. Las etiquetas indican referencias y funciones solicitadas, no resultados verificados. Las portadas son ilustraciones conceptuales originales.",
+    "featuresLabel": "Archivos y funciones solicitadas",
+    "inputFiles": "{{count}} archivos de entrada · ver lista",
+    "useDemoPack": "Usar paquete de ejemplo",
+    "features": {
+      "local-assets": "Recursos locales",
+      "document-input": "Documentos",
+      "sketch-reference": "Boceto de referencia",
+      "multi-screen": "Varias pantallas",
+      "shared-state": "Estado compartido",
+      "interactive-flow": "Flujo interactivo",
+      "responsive": "Adaptable"
+    },
     "empty": "Ningún ejemplo coincide con tu filtro.",
     "useThisPrompt": "Usar esta instrucción",
     "categories": {

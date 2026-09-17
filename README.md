@@ -57,6 +57,18 @@ Turn a prompt into a polished prototype, slide deck, or marketing asset, locally
 
 ## See it generate
 
+The **Examples** gallery also includes three editable, asset-backed starting
+points: **Daymark** (Todo brief, task/project JSON, original logo and design
+tokens), **Common Ground** (workshop brief, schedule CSV and original artwork),
+and **Trailhead** (an original low-fidelity SVG sketch, annotated brief and trip
+data). Selecting a pack creates a fresh workspace and copies its reference
+files before filling the composer; inspect or edit them in Files, then send
+when ready. Nothing is submitted automatically and no existing workspace is
+overwritten. These fictional MIT-licensed packs contain inputs, not prebuilt
+final interfaces. Tags describe supplied references and requested prototype
+behavior, not verified generation results. Bookings and other data are
+simulated; the sketch includes text annotations for models without image input.
+
 From a blank prompt to a finished artifact, the agent plans, writes, self-checks, and ships something with hover states, tabs, and empty states already wired up:
 
 ![Generate a design from scratch](https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/demos/generate-from-scratch.gif)

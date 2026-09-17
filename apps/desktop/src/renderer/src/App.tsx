@@ -215,16 +215,16 @@ export function App() {
         {hubMounted ? (
           <div hidden={view !== 'hub'} className="h-full">
             <HubView
-              onUseExamplePrompt={async (p) => {
+              onUseExamplePrompt={async (example) => {
                 // Clicking an example is an explicit "start a new thing"
                 // intent — always create a fresh design and preload the
                 // prompt into IT, never into whatever design the user was
                 // last on. If createNewDesign fails (e.g. another run is in
                 // flight) it surfaces a toast; we bail so the example prompt
                 // doesn't quietly land in the current design's input box.
-                const created = await createNewDesign();
+                const created = await createNewDesign(undefined, example.inputBundle);
                 if (!created) return;
-                prefillComposer(p);
+                prefillComposer(example.prompt);
                 setView('workspace');
               }}
             />

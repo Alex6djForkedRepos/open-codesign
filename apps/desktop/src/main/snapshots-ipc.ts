@@ -23,6 +23,7 @@ import type {
   SnapshotCreateInput,
 } from '@open-codesign/shared';
 import { ChatMessageKind, CodesignError, CommentKind, CommentRect } from '@open-codesign/shared';
+import { isDemoInputId } from '@open-codesign/templates/demo-inputs';
 import type { BrowserWindow } from 'electron';
 import {
   bindWorkspace,
@@ -1265,6 +1266,16 @@ export function registerSnapshotsIpc(db: Database): void {
       }
       const name = (r['name'] as string).trim();
       const requestedWorkspacePath = parseCreateDesignWorkspacePath(r);
+      const demoInputId = r['demoInputId'];
+      if (
+        demoInputId !== undefined &&
+        (!isDemoInputId(demoInputId) || requestedWorkspacePath !== undefined)
+      ) {
+        throw new CodesignError(
+          'Demo inputs require a known bundle and a new default workspace',
+          'IPC_BAD_INPUT',
+        );
+      }
       const design = runDb('create-design', () => createDesign(db, name));
       // v0.2: every design MUST have a workspace — per docs/v0.2-plan.md §2.3.
       // When the user hasn't picked one explicitly, seed
@@ -1275,6 +1286,10 @@ export function registerSnapshotsIpc(db: Database): void {
         const workspacePath = requestedWorkspacePath ?? (await allocateDefaultWorkspacePath(name));
         if (requestedWorkspacePath === undefined) {
           autoWorkspacePath = workspacePath;
+        }
+        if (isDemoInputId(demoInputId)) {
+          const { seedDemoInputs } = await import('./demo-inputs');
+          await seedDemoInputs(workspacePath, demoInputId);
         }
         return await bindWorkspace(
           db,

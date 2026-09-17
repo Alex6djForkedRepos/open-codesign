@@ -702,11 +702,12 @@ const api = {
   snapshots: {
     listDesigns: () =>
       ipcRenderer.invoke('snapshots:v1:list-designs', { schemaVersion: 1 }) as Promise<Design[]>,
-    createDesign: (name: string, workspacePath?: string | null) =>
+    createDesign: (name: string, workspacePath?: string | null, demoInputId?: string) =>
       ipcRenderer.invoke('snapshots:v1:create-design', {
         schemaVersion: 1,
         name,
         ...(workspacePath !== undefined ? { workspacePath } : {}),
+        ...(demoInputId !== undefined ? { demoInputId } : {}),
       }) as Promise<Design>,
     getDesign: (id: string) =>
       ipcRenderer.invoke('snapshots:v1:get-design', {
