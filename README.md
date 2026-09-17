@@ -68,6 +68,9 @@ overwritten. These fictional MIT-licensed packs contain inputs, not prebuilt
 final interfaces. Tags describe supplied references and requested prototype
 behavior, not verified generation results. Bookings and other data are
 simulated; the sketch includes text annotations for models without image input.
+Preflight receives a bounded, non-exhaustive list of existing workspace file
+paths and recognizes local `DESIGN.md` guidance. An absent `App.jsx` does not
+mean reference inputs are missing; the agent can inspect them before building.
 
 From a blank prompt to a finished artifact, the agent plans, writes, self-checks, and ships something with hover states, tabs, and empty states already wired up:
 

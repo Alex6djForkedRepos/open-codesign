@@ -813,30 +813,57 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           const tlsBypass = resolveTlsBypassFor(cfg, active.model.provider);
 
           const prefs = await readPreferences();
-          const { designId, workspaceRoot, promptContext, memoryContext, memoryLoadWarning } =
-            await withStableWorkspacePath(payload.designId, async () => {
-              const { designId, workspaceRoot } = requireWorkspaceRootForDesign(payload.designId);
-              const promptContext = await preparePromptContext({
-                attachments: payload.attachments,
-                referenceUrl: payload.referenceUrl,
-                designSystem: cfg.designSystem ?? null,
-                workspaceRoot,
-              });
-              let memoryContext: Awaited<ReturnType<typeof loadMemoryContext>> | undefined;
-              let memoryLoadWarning: string | undefined;
-              if (prefs.memoryEnabled) {
-                try {
-                  memoryContext = await loadMemoryContext(workspaceRoot);
-                } catch (err) {
-                  memoryLoadWarning = `Project memory unavailable: ${err instanceof Error ? err.message : String(err)}`;
-                  logIpc.warn('memory.load.fail', {
-                    generationId: id,
-                    message: err instanceof Error ? err.message : String(err),
-                  });
-                }
-              }
-              return { designId, workspaceRoot, promptContext, memoryContext, memoryLoadWarning };
+          const {
+            designId,
+            workspaceRoot,
+            promptContext,
+            memoryContext,
+            memoryLoadWarning,
+            fileInventory,
+          } = await withStableWorkspacePath(payload.designId, async () => {
+            const { designId, workspaceRoot } = requireWorkspaceRootForDesign(payload.designId);
+            const promptContext = await preparePromptContext({
+              attachments: payload.attachments,
+              referenceUrl: payload.referenceUrl,
+              designSystem: cfg.designSystem ?? null,
+              workspaceRoot,
             });
+            const workspaceFiles = await listWorkspaceFilesAt(workspaceRoot);
+            const paths: string[] = [];
+            let pathChars = 0;
+            for (const file of workspaceFiles) {
+              if (paths.length >= 200 || pathChars + file.path.length > 16_000) break;
+              paths.push(file.path);
+              pathChars += file.path.length;
+            }
+            const fileInventory = {
+              paths,
+              truncated: paths.length < workspaceFiles.length,
+              // The shared scanner also omits hidden paths and caps its traversal.
+              exhaustive: false,
+            };
+            let memoryContext: Awaited<ReturnType<typeof loadMemoryContext>> | undefined;
+            let memoryLoadWarning: string | undefined;
+            if (prefs.memoryEnabled) {
+              try {
+                memoryContext = await loadMemoryContext(workspaceRoot);
+              } catch (err) {
+                memoryLoadWarning = `Project memory unavailable: ${err instanceof Error ? err.message : String(err)}`;
+                logIpc.warn('memory.load.fail', {
+                  generationId: id,
+                  message: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+            return {
+              designId,
+              workspaceRoot,
+              promptContext,
+              memoryContext,
+              memoryLoadWarning,
+              fileInventory,
+            };
+          });
           const currentDesignName =
             db !== null ? (getDesign(db, designId)?.name ?? undefined) : undefined;
 
@@ -889,6 +916,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 ? readSessionRunPreferences(runPreferenceStoreOptions, designId)
                 : null;
             const workspaceState = {
+              fileInventory,
               sourcePath: payload.previousSource ? 'App.jsx' : null,
               hasSource: Boolean(payload.previousSource?.trim()),
               hasDesignMd: Boolean(promptContext.projectContext.designMd?.trim()),
@@ -899,7 +927,9 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 file.mediaType?.startsWith('image/'),
               ).length,
               hasReferenceUrl: promptContext.referenceUrl !== null,
-              hasDesignSystem: promptContext.designSystem !== null,
+              hasDesignSystem:
+                promptContext.designSystem !== null ||
+                Boolean(promptContext.projectContext.designMd?.trim()),
             };
             const routedPreferences = await withTlsBypass(tlsBypass, () =>
               routeRunPreferences({
@@ -933,7 +963,9 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
                 : undefined,
               attachmentCount: promptContext.attachments.length,
               hasReferenceUrl: promptContext.referenceUrl !== null,
-              hasDesignSystem: promptContext.designSystem !== null,
+              hasDesignSystem:
+                promptContext.designSystem !== null ||
+                Boolean(promptContext.projectContext.designMd?.trim()),
             });
             let preflightAnswers: Array<{
               questionId: string;

@@ -3,10 +3,19 @@ import {
   applyRunPreferenceAnswers,
   defaultRunPreferences,
   normalizeRunPreferencesRouterResult,
+  RUN_PREFERENCES_ROUTER_SYSTEM_PROMPT,
   runPreferencesFromJson,
 } from './run-preferences.js';
 
 describe('run preferences semantic router normalization', () => {
+  it('distinguishes known reference files from generated source and unknown inventory omissions', () => {
+    expect(RUN_PREFERENCES_ROUTER_SYSTEM_PROMPT).toContain('workspaceState.fileInventory.paths');
+    expect(RUN_PREFERENCES_ROUTER_SYSTEM_PROMPT).toContain('unknown, not proven absent');
+    expect(RUN_PREFERENCES_ROUTER_SYSTEM_PROMPT).toContain(
+      'Never ask the user to re-upload listed files',
+    );
+    expect(RUN_PREFERENCES_ROUTER_SYSTEM_PROMPT).toContain('including workspace DESIGN.md');
+  });
   it('normalizes complete router output with routing metadata', () => {
     const result = normalizeRunPreferencesRouterResult(
       {

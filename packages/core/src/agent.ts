@@ -1064,7 +1064,9 @@ export async function generateViaAgent(
     },
     attachmentCount: input.attachments?.length ?? 0,
     hasReferenceUrl: input.referenceUrl !== null && input.referenceUrl !== undefined,
-    hasDesignSystem: input.designSystem !== null && input.designSystem !== undefined,
+    hasDesignSystem:
+      (input.designSystem !== null && input.designSystem !== undefined) ||
+      Boolean(input.projectContext?.designMd?.trim()),
   });
   const runProtocolState: RunProtocolState = {
     requiresTodosBeforeMutation: runProtocol.requiresTodosBeforeMutation,
