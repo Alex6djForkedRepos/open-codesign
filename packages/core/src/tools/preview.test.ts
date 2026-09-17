@@ -4,7 +4,9 @@ import {
   MAX_ASSET_ERRORS,
   MAX_CONSOLE_ENTRIES,
   makePreviewTool,
+  type PreviewInput,
   type PreviewResult,
+  validatePreviewInput,
 } from './preview.js';
 
 function cannedResult(overrides: Partial<PreviewResult> = {}): PreviewResult {
@@ -106,5 +108,79 @@ describe('makePreviewTool', () => {
       message: 'Preview executor failed: iframe crashed',
     });
     expect((err as CodesignError).cause).toBe(cause);
+  });
+
+  it('forwards viewport, ordered steps, and cancellation across the core boundary', async () => {
+    const input: PreviewInput = {
+      path: 'App.jsx',
+      viewport: { width: 390, height: 844 },
+      steps: [
+        { action: 'fill', selector: '#new-task', value: 'Buy milk' },
+        { action: 'press', selector: '#new-task', key: 'Enter' },
+        { action: 'assert', selector: '#tasks', text: 'Buy milk', visible: true },
+      ],
+    };
+    const signal = new AbortController().signal;
+    const runPreview = vi.fn().mockResolvedValue(
+      cannedResult({
+        visibleText: 'Buy milk',
+        domOutline: 'ul#tasks',
+        steps: [{ index: 0, action: 'fill', selector: '#new-task', ok: true }],
+      }),
+    );
+    const result = await makePreviewTool(runPreview).execute('call', input, signal);
+    expect(runPreview).toHaveBeenCalledWith({ ...input, vision: false, signal });
+    expect(result.content[1]).toMatchObject({ type: 'text' });
+    expect(JSON.stringify(result.content)).toContain('Buy milk');
+    expect(JSON.stringify(result.content)).toContain('ul#tasks');
+  });
+
+  it.each([
+    { viewport: { width: 239, height: 800 } },
+    { viewport: { width: 2561, height: 800 } },
+    { viewport: { width: 390, height: 1601 } },
+    { viewport: { width: 390.5, height: 844 } },
+    { steps: Array.from({ length: 17 }, () => ({ action: 'click', selector: '#x' })) },
+    { steps: [{ action: 'click', selector: '' }] },
+    { steps: [{ action: 'click', selector: 'x'.repeat(257) }] },
+    { steps: [{ action: 'fill', selector: '#x', value: 'x'.repeat(2001) }] },
+    { steps: [{ action: 'press', selector: '#x', key: 'F12' }] },
+    { steps: [{ action: 'assert', selector: '#x' }] },
+    { steps: [{ action: 'assert', selector: '#x', text: '' }] },
+    { steps: [{ action: 'click', selector: '#x', script: 'alert(1)' }] },
+  ])('rejects invalid bounded input %j', (input) => {
+    expect(() => validatePreviewInput({ path: 'App.jsx', ...input })).toThrow(
+      /Invalid preview input/,
+    );
+  });
+
+  it('accepts viewport limits, sixteen steps, and absence assertions', () => {
+    for (const viewport of [
+      { width: 240, height: 240 },
+      { width: 2560, height: 1600 },
+    ]) {
+      expect(() =>
+        validatePreviewInput({
+          path: 'App.jsx',
+          viewport,
+          steps: Array.from({ length: 16 }, () => ({
+            action: 'assert',
+            selector: '#x',
+            visible: false,
+          })),
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('reports recovered cleanup warnings without calling the artifact broken', async () => {
+    const runPreview = vi.fn().mockResolvedValue(
+      cannedResult({
+        warnings: ['Graceful shutdown timed out; isolated browser terminated'],
+      }),
+    );
+    const result = await makePreviewTool(runPreview).execute('call', { path: 'App.jsx' });
+    expect(result.details.ok).toBe(true);
+    expect(JSON.stringify(result.content)).toContain('isolated browser terminated');
   });
 });

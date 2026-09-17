@@ -195,8 +195,9 @@ vi.mock('../ask-ipc', () => ({
   requestAsk: vi.fn(async () => ({ status: 'answered', answers: [] })),
 }));
 
-import { generateViaAgent, routeRunPreferences } from '@open-codesign/core';
+import { generateViaAgent, type RunPreviewOptions, routeRunPreferences } from '@open-codesign/core';
 import { requestAsk } from '../ask-ipc';
+import { runPreview } from '../preview-runtime';
 import { appendSessionChatMessage } from '../session-chat';
 import { createDesign, initInMemoryDb, updateDesignWorkspace } from '../snapshots-db';
 import { registerSnapshotsIpc } from '../snapshots-ipc';
@@ -277,6 +278,21 @@ describe('generate IPC workspace rename coordination', () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(renameSettled).toBe(true);
+      const renamed = await renamePromise;
+      const preview = vi.mocked(generateViaAgent).mock.calls[0]?.[0].runPreview;
+      expect(preview).toBeDefined();
+      const options: RunPreviewOptions = {
+        path: 'App.jsx',
+        vision: false,
+        viewport: { width: 390, height: 844 },
+        steps: [{ action: 'assert', selector: '#tasks', visible: true }],
+        signal: new AbortController().signal,
+      };
+      await preview?.(options);
+      expect(runPreview).toHaveBeenCalledWith({
+        ...options,
+        workspaceRoot: renamed.workspacePath,
+      });
     } finally {
       generateControl.release();
       await Promise.allSettled([generatePromise, renamePromise]);

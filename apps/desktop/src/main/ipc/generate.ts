@@ -571,9 +571,9 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           withStableWorkspacePath(designId, () =>
             readWorkspaceFilesAt(currentWorkspaceRoot(), patterns),
           ),
-        runPreview: ({ path, vision }) =>
+        runPreview: (options) =>
           withStableWorkspacePath(designId, () =>
-            runPreview({ path, vision, workspaceRoot: currentWorkspaceRoot() }),
+            runPreview({ ...options, workspaceRoot: currentWorkspaceRoot() }),
           ),
       },
       {

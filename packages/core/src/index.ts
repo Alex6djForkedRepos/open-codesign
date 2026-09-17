@@ -131,9 +131,13 @@ export {
 } from './tools/inspect-workspace.js';
 export {
   makePreviewTool,
+  type PreviewInput,
   type PreviewResult,
+  type PreviewStep,
   type RunPreviewFn,
+  type RunPreviewOptions,
   trimPreviewResult,
+  validatePreviewInput,
 } from './tools/preview.js';
 export { makeScaffoldTool, type ScaffoldDetails } from './tools/scaffold.js';
 export { makeSetTitleTool, normalizeTitle, type SetTitleDetails } from './tools/set-title.js';
@@ -283,12 +287,7 @@ export interface GenerateInput {
    * read back console / asset errors + a DOM outline (or screenshot on
    * vision-capable models).
    */
-  runPreview?:
-    | ((opts: {
-        path: string;
-        vision: boolean;
-      }) => Promise<import('./tools/preview.js').PreviewResult>)
-    | undefined;
+  runPreview?: import('./tools/preview.js').RunPreviewFn | undefined;
   /**
    * Optional async bridge for the `ask` tool. When provided, the agent gains
    * an `ask` tool that pauses the turn, renders the questionnaire to the
