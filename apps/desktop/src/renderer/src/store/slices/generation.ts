@@ -725,6 +725,16 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
         set,
         status.running.filter((run) => !cancelled.has(run.generationId)),
       );
+      const currentDesignId = get().currentDesignId;
+      await Promise.all(
+        [
+          ...new Set([
+            ...Object.keys(get().activeMessagesByDesign),
+            ...status.running.map((run) => run.designId),
+            ...(currentDesignId ? [currentDesignId] : []),
+          ]),
+        ].map((designId) => get().syncActiveMessages(designId)),
+      );
     },
 
     markGenerationRunning(designId, generationId, stage = 'thinking') {
@@ -974,6 +984,7 @@ export function makeGenerationSlice(set: SetState, get: GetState): GenerationSli
       void window.codesign
         .cancelGeneration(id)
         .then(() => {
+          void get().syncActiveMessages(designId);
           // The renderer already stopped optimistically. Main-process late
           // events are filtered until the terminal event arrives.
         })

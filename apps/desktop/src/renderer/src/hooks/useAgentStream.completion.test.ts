@@ -97,6 +97,7 @@ beforeEach(() => {
       },
       chat: {
         append,
+        updateToolStatus: vi.fn(async () => {}),
         list: vi.fn(async () => []),
         seedFromSnapshots: vi.fn(async () => {}),
         onAgentEvent: (callback: (event: AgentStreamEvent) => void) => {
@@ -119,6 +120,141 @@ afterEach(() => {
 });
 
 describe('agent stream / IPC completion ordering', () => {
+  it('keeps assistant fragments in memory across tool start until the host-persisted turn end', async () => {
+    const reload = vi.fn(async () => {});
+    useCodesignStore.setState({ loadChatForCurrentDesign: reload });
+    emit('turn_start', 'fragments');
+    emit('text_delta', 'fragments', { delta: 'Before tool. ' });
+    emit('tool_call_start', 'fragments', { toolName: 'read', toolCallId: 'read-file' });
+    await Promise.resolve();
+    expect(append.mock.calls.map(([input]) => input.kind)).toEqual(['tool_call']);
+    expect(useCodesignStore.getState().streamingAssistantTextByDesign[design.id]).toBe(
+      'Before tool. ',
+    );
+    emit('text_delta', 'fragments', { delta: 'After tool.' });
+    emit('turn_end', 'fragments', {
+      finalText: 'Before tool. After tool.',
+      chatPersisted: true,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(append.mock.calls.map(([input]) => input.kind)).toEqual(['tool_call']);
+    expect(window.codesign?.chat.updateToolStatus).toHaveBeenCalledWith({
+      designId: design.id,
+      seq: 1,
+      status: 'done',
+    });
+    expect(reload).toHaveBeenCalledOnce();
+    expect(useCodesignStore.getState().streamingAssistantTextByDesign[design.id]).toBeUndefined();
+    expect(useCodesignStore.getState().generationByDesign[design.id]?.streamedAssistantText).toBe(
+      'Before tool. After tool.',
+    );
+  });
+
+  it('reloads host-persisted assistant text without appending and still finalizes streaming/dedupe', () => {
+    const reload = vi.fn(async () => {});
+    useCodesignStore.setState({
+      loadChatForCurrentDesign: reload,
+      generationByDesign: {
+        [design.id]: { generationId: 'host-persisted', stage: 'thinking', awaitingResponse: true },
+      },
+    });
+    emit('turn_start', 'host-persisted');
+    emit('text_delta', 'host-persisted', { delta: '  Finished the previous turn  ' });
+    expect(useCodesignStore.getState().streamingAssistantTextByDesign[design.id]).toBe(
+      '  Finished the previous turn  ',
+    );
+    emit('turn_end', 'host-persisted', {
+      finalText: '  Finished the previous turn  ',
+      chatPersisted: true,
+    });
+    expect(append).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(useCodesignStore.getState().streamingAssistantTextByDesign[design.id]).toBeUndefined();
+    expect(useCodesignStore.getState().generationByDesign[design.id]).toMatchObject({
+      awaitingResponse: true,
+      streamedAssistantText: 'Finished the previous turn',
+    });
+    emit('turn_end', 'host-persisted', { finalText: 'Finished the previous turn' });
+    expect(append).not.toHaveBeenCalled();
+    emit('agent_end', 'host-persisted');
+    expect(useCodesignStore.getState().persistAgentRunSnapshot).toHaveBeenCalledWith({
+      designId: design.id,
+      finalText: '  Finished the previous turn  ',
+    });
+    expect(useCodesignStore.getState().generationByDesign[design.id]?.awaitingResponse).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('does not replace visible chat for a host-persisted background turn', () => {
+    const reload = vi.fn(async () => {});
+    useCodesignStore.setState({ loadChatForCurrentDesign: reload });
+    emit('turn_start', 'background');
+    useCodesignStore.setState({ currentDesignId: 'other-design' });
+    emit('turn_end', 'background', { finalText: 'Background result', chatPersisted: true });
+    expect(reload).not.toHaveBeenCalled();
+    expect(append).not.toHaveBeenCalled();
+    expect(useCodesignStore.getState().streamingAssistantTextByDesign[design.id]).toBeUndefined();
+  });
+
+  it.each([
+    false,
+    undefined,
+  ])('preserves normal assistant append when chatPersisted is %s', (chatPersisted) => {
+    emit('turn_start', 'normal');
+    emit('turn_end', 'normal', {
+      finalText: 'Normal result',
+      ...(chatPersisted !== undefined ? { chatPersisted } : {}),
+    });
+    expect(append).toHaveBeenCalledWith({
+      designId: design.id,
+      kind: 'assistant_text',
+      payload: { text: 'Normal result' },
+    });
+  });
+
+  it('reconciles active message outcomes after Stop without reactivating generation', () => {
+    const message = {
+      schemaVersion: 1 as const,
+      designId: design.id,
+      generationId: 'stopped',
+      messageId: 'pending-message',
+      mode: 'follow-up' as const,
+      text: 'Keep this recoverable',
+      status: 'pending' as const,
+      createdAt: '2026-09-17T00:00:00Z',
+    };
+    useCodesignStore.setState({
+      cancelledGenerationIds: new Set(['stopped']),
+      activeMessagesByDesign: { [design.id]: [message] },
+    });
+    emit('active_message', 'stopped', {
+      activeMessage: { ...message, status: 'not-delivered', reason: 'Stopped' },
+    });
+    expect(useCodesignStore.getState().activeMessagesByDesign[design.id]?.[0]?.status).toBe(
+      'not-delivered',
+    );
+    expect(useCodesignStore.getState().isGenerating).toBe(false);
+    expect(append).not.toHaveBeenCalled();
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('ignores active message events whose envelope belongs to a different design', () => {
+    useCodesignStore.getState().markGenerationRunning(design.id, 'active');
+    emit('active_message', 'active', {
+      activeMessage: {
+        schemaVersion: 1,
+        designId: 'different-design',
+        generationId: 'active',
+        messageId: 'wrong-design',
+        mode: 'steer',
+        text: 'Do not merge',
+        status: 'pending',
+        createdAt: '2026-09-17T00:00:00Z',
+      },
+    });
+    expect(useCodesignStore.getState().activeMessagesByDesign).toEqual({});
+  });
+
   it.each([
     'agent_end',
     'error',

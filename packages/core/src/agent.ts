@@ -59,6 +59,7 @@ import {
   type WireApi,
 } from '@open-codesign/shared';
 import type { TSchema } from '@sinclair/typebox';
+import type { ActiveRunMessages } from './active-messages.js';
 import { buildTransformContext } from './context-prune.js';
 import { remapProviderError } from './errors.js';
 import type { GenerateInput, GenerateOutput } from './index.js';
@@ -630,8 +631,8 @@ function wrapDoneState(
   resourceState: ResourceStateV1,
   onRepairLimitReached?: (() => void) | undefined,
   onDone?: ((details: DoneDetails) => void) | undefined,
+  progress = { errorRounds: 0 },
 ): AgentTool<TSchema, unknown> {
-  let errorRounds = 0;
   return {
     ...tool,
     executionMode: 'sequential',
@@ -646,10 +647,10 @@ function wrapDoneState(
           errorCount: details.errors.length,
         });
         if (details.status === 'ok') {
-          errorRounds = 0;
+          progress.errorRounds = 0;
         } else {
-          errorRounds += 1;
-          if (errorRounds >= MAX_DONE_ERROR_ROUNDS) {
+          progress.errorRounds += 1;
+          if (progress.errorRounds >= MAX_DONE_ERROR_ROUNDS) {
             onRepairLimitReached?.();
             return {
               ...result,
@@ -900,6 +901,7 @@ function buildTurnPrompt(input: GenerateInput, fs: TextEditorFsCallbacks | undef
 export type { AgentEvent };
 
 export interface GenerateViaAgentDeps {
+  activeMessages?: ActiveRunMessages | undefined;
   /** Optional subscriber for Agent lifecycle + streaming events. */
   onEvent?: ((event: AgentEvent) => void) | undefined;
   /** Retry callback — invoked with placeholder reasons today; present so the
@@ -965,6 +967,17 @@ export async function generateViaAgent(
   input: GenerateInput,
   deps: GenerateViaAgentDeps = {},
 ): Promise<GenerateOutput> {
+  try {
+    return await generateViaAgentInternal(input, deps);
+  } finally {
+    deps.activeMessages?.close();
+  }
+}
+
+async function generateViaAgentInternal(
+  input: GenerateInput,
+  deps: GenerateViaAgentDeps = {},
+): Promise<GenerateOutput> {
   const log = input.logger ?? NOOP_LOGGER;
   const ctx = {
     provider: input.model.provider,
@@ -1002,6 +1015,7 @@ export async function generateViaAgent(
   const trackedFs = deps.fs ? trackFsMutations(deps.fs, resourceState) : undefined;
   let doneRepairLimitReached = false;
   let lastDoneDetails: DoneDetails | undefined;
+  const doneProgress = { errorRounds: 0 };
   const skillsBuiltinDir = input.templatesRoot
     ? path.join(input.templatesRoot, 'skills')
     : undefined;
@@ -1132,6 +1146,7 @@ export async function generateViaAgent(
           (details) => {
             lastDoneDetails = details;
           },
+          doneProgress,
         ),
         runProtocolState,
       ),
@@ -1331,9 +1346,17 @@ export async function generateViaAgent(
         : () => initialApiKey || 'open-codesign-keyless',
       ...(onPayload !== undefined ? { onPayload } : {}),
     });
-    if (deps.onEvent) {
-      retryAgent.subscribe((event) => deps.onEvent?.(event));
-    }
+    retryAgent.subscribe((event) => {
+      deps.activeMessages?.handleEvent(event, () => {
+        resourceState.lastDone = null;
+        runProtocolState.todosSet = false;
+        doneRepairLimitReached = false;
+        lastDoneDetails = undefined;
+        doneProgress.errorRounds = 0;
+      });
+      deps.onEvent?.(event);
+    });
+    deps.activeMessages?.bind(retryAgent);
     return retryAgent;
   };
 

@@ -16,6 +16,7 @@ import type {
   DesignRunPreferencesV1,
 } from '@open-codesign/shared';
 import {
+  ActiveRunMessageV1,
   CodesignError,
   CommentRowV1,
   DesignRunPreferencesV1 as DesignRunPreferencesV1Schema,
@@ -29,6 +30,7 @@ export const CHAT_TOOL_STATUS_CUSTOM_TYPE = 'open-codesign.chat.tool_status';
 export const COMMENT_CUSTOM_TYPE = 'open-codesign.comment.v1';
 export const CONTEXT_BRIEF_CUSTOM_TYPE = 'open-codesign.context.brief.v1';
 export const RUN_PREFERENCES_CUSTOM_TYPE = 'open-codesign.context.run_preferences.v1';
+export const ACTIVE_MESSAGE_CUSTOM_TYPE = 'open-codesign.active-message.v1';
 
 export interface SessionChatStoreOptions {
   db: Database;
@@ -271,9 +273,28 @@ function applyStatusUpdate(row: ChatMessageRow, update: StoredToolStatusUpdate):
 
 function replayEntries(designId: string, entries: unknown[]): ChatMessageRow[] {
   const rows: ChatMessageRow[] = [];
+  const deliveredIds = new Set<string>();
   for (const raw of entries) {
     const entry = raw as CustomEntryLike;
     if (entry.type !== 'custom') continue;
+    if (entry.customType === ACTIVE_MESSAGE_CUSTOM_TYPE) {
+      const message = ActiveRunMessageV1.parse(entry.data);
+      if (message.designId !== designId)
+        throw new CodesignError('Stored message belongs to another design.', 'IPC_DB_ERROR');
+      if (message.status !== 'delivered' || deliveredIds.has(message.messageId)) continue;
+      deliveredIds.add(message.messageId);
+      rows.push({
+        schemaVersion: 1,
+        id: rows.length,
+        seq: rows.length,
+        designId,
+        kind: 'user',
+        payload: { text: message.text, activeMessageId: message.messageId, mode: message.mode },
+        snapshotId: null,
+        createdAt: entry.timestamp ?? message.createdAt,
+      });
+      continue;
+    }
     if (entry.customType === CHAT_MESSAGE_CUSTOM_TYPE) {
       const stored = parseStoredMessage(entry.data);
       if (stored === null) {
@@ -314,6 +335,34 @@ export function listSessionChatMessages(
   if (!existsSync(file)) return [];
   const manager = SessionManager.open(file, opts.sessionDir, cwd);
   return replayEntries(designId, manager.getEntries());
+}
+
+export function appendSessionActiveMessage(
+  opts: SessionChatStoreOptions,
+  message: ActiveRunMessageV1,
+): void {
+  const checked = ActiveRunMessageV1.parse(message);
+  const manager = openSession(opts, checked.designId);
+  manager.appendCustomEntry(ACTIVE_MESSAGE_CUSTOM_TYPE, checked);
+  flushSession(manager);
+}
+
+export function listSessionActiveMessages(
+  opts: SessionChatStoreOptions,
+  designId: string,
+): ActiveRunMessageV1[] {
+  const cwd = resolveSessionCwd(opts, designId);
+  const file = sessionFileForDesign(opts.sessionDir, designId);
+  if (!existsSync(file)) return [];
+  const latest = new Map<string, ActiveRunMessageV1>();
+  for (const entry of SessionManager.open(file, opts.sessionDir, cwd).getEntries()) {
+    if (entry.type !== 'custom' || entry.customType !== ACTIVE_MESSAGE_CUSTOM_TYPE) continue;
+    const row = ActiveRunMessageV1.parse(entry.data);
+    if (row.designId !== designId)
+      throw new CodesignError('Stored message belongs to another design.', 'IPC_DB_ERROR');
+    latest.set(row.messageId, row);
+  }
+  return [...latest.values()];
 }
 
 function replayCommentEvents(designId: string, entries: unknown[]): CommentRow[] {

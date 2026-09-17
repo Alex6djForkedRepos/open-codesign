@@ -1,4 +1,18 @@
 {
+  "activeMessages": {
+    "queue": "Queue follow-up",
+    "steer": "Steer next step",
+    "pending": "Queued — not yet delivered",
+    "notDelivered": "Not delivered",
+    "recover": "Recover to draft",
+    "recoverPending": "Copies the text only; the queued message remains pending. Do not resend unless needed.",
+    "boundary": "Follow-ups wait until the assistant finishes its turn and tool batch. Steering is delivered at the next supported step boundary, not mid-response or mid-tool. Neither bypasses a pending question or permission request.",
+    "textOnly": "During generation, messages are text-only. Files, reference URLs, and queued comments cannot be included.",
+    "textOnlyError": "Active messages are text-only. Remove attached files, the reference URL, and queued comments, or wait for generation to finish. Your draft was kept.",
+    "notRunning": "This generation is no longer available. Your draft was kept; send it when the agent is ready.",
+    "sendFailed": "Message was not accepted",
+    "loadFailed": "Could not refresh active messages"
+  },
   "common": {
     "appName": "open-codesign",
     "send": "Send",

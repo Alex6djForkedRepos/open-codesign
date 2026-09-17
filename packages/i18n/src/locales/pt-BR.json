@@ -1,4 +1,18 @@
 {
+  "activeMessages": {
+    "queue": "Enfileirar acompanhamento",
+    "steer": "Orientar próximo passo",
+    "pending": "Na fila — ainda não entregue",
+    "notDelivered": "Não entregue",
+    "recover": "Recuperar como rascunho",
+    "recoverPending": "Apenas copia o texto; a mensagem continua na fila. Não reenvie, a menos que seja necessário.",
+    "boundary": "Os acompanhamentos aguardam o assistente concluir o turno e o lote de ferramentas. As orientações são entregues no próximo limite de etapa compatível, não durante uma resposta ou ferramenta. Nenhuma opção ignora perguntas ou pedidos de permissão pendentes.",
+    "textOnly": "Durante a geração, as mensagens aceitam apenas texto. Não podem incluir arquivos, URLs de referência ou comentários na fila.",
+    "textOnlyError": "Mensagens ativas aceitam apenas texto. Remova os anexos, a URL de referência e os comentários na fila, ou aguarde o fim da geração. O rascunho foi mantido.",
+    "notRunning": "Esta geração não está mais disponível. O rascunho foi mantido; envie quando o agente estiver pronto.",
+    "sendFailed": "A mensagem não foi aceita",
+    "loadFailed": "Não foi possível atualizar as mensagens ativas"
+  },
   "common": {
     "appName": "open-codesign",
     "send": "Enviar",

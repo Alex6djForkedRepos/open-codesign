@@ -174,6 +174,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
             ? await window.codesign.snapshots.createDesign(name, workspacePath)
             : await window.codesign.snapshots.createDesign(name, workspacePath, demoInputId);
         set((state) => buildFreshDesignState(state, design.id));
+        void get().syncActiveMessages(design.id);
         await get().loadDesigns();
         void get().loadChatForCurrentDesign();
         void get().loadCommentsForCurrentDesign();
@@ -191,6 +192,7 @@ export function makeDesignsSlice(set: SetState, get: GetState): DesignsSliceActi
 
     async switchDesign(id: string) {
       if (!window.codesign) return;
+      void get().syncActiveMessages(id);
       const state = get();
       if (state.currentDesignId === id) {
         set({ designsViewOpen: false });

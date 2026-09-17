@@ -1,5 +1,6 @@
 import path_module from 'node:path';
 import {
+  ActiveRunMessages,
   type AgentEvent,
   type AskInput,
   buildApplyCommentUserPrompt,
@@ -19,12 +20,14 @@ import {
 } from '@open-codesign/core';
 import { complete, detectProviderFromKey, generateImage } from '@open-codesign/providers';
 import {
+  ActiveRunMessageInputV1,
   ApplyCommentPayload,
   CancelGenerationPayloadV1,
   CodesignError,
   type Config,
   deriveResourceStateFromChatRows,
   GeneratePayloadV1,
+  ListActiveMessagesInputV1,
 } from '@open-codesign/shared';
 import { computeFingerprint } from '@open-codesign/shared/fingerprint';
 import type { BrowserWindow as ElectronBrowserWindow } from 'electron';
@@ -62,8 +65,11 @@ import { makeUiKitRenderer } from '../render-ui-kit';
 import { resolveActiveApiKey, resolveCredentialForProvider } from '../resolve-api-key';
 import { withRun } from '../runContext';
 import {
+  appendSessionActiveMessage,
+  appendSessionChatMessage,
   appendSessionDesignBrief,
   appendSessionRunPreferences,
+  listSessionActiveMessages,
   listSessionChatMessages,
   readSessionDesignBrief,
   readSessionRunPreferences,
@@ -383,6 +389,64 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       sessionDir: db.sessionDir,
     };
   };
+  const activeMessageRuns = new Map<string, ActiveRunMessages>();
+  const requireChatStore = (): SessionChatStoreOptions => {
+    const opts = chatStoreOptions();
+    if (!opts) throw new CodesignError('Session storage is unavailable.', 'IPC_DB_ERROR');
+    return opts;
+  };
+  ipcMain.handle('codesign:v1:active-message', async (_event, raw: unknown) => {
+    const payload = ActiveRunMessageInputV1.parse(raw);
+    return withStableWorkspacePath(payload.designId, async () => {
+      requireWorkspaceRootForDesign(payload.designId);
+      const previous = listSessionActiveMessages(requireChatStore(), payload.designId).find(
+        (row) => row.messageId === payload.messageId,
+      );
+      if (previous) {
+        if (
+          previous.generationId !== payload.generationId ||
+          previous.mode !== payload.mode ||
+          previous.text !== payload.text
+        ) {
+          throw new CodesignError(
+            'Message ID already belongs to a different request.',
+            'IPC_BAD_INPUT',
+          );
+        }
+        if (previous.status === 'pending' && !activeMessageRuns.has(previous.generationId)) {
+          const recovered = {
+            ...previous,
+            status: 'not-delivered' as const,
+            reason: 'The previous run ended. Recover this message to send it again.',
+          };
+          appendSessionActiveMessage(requireChatStore(), recovered);
+          return recovered;
+        }
+        return previous;
+      }
+      const run = activeMessageRuns.get(payload.generationId);
+      if (!run)
+        throw new CodesignError(
+          'This generation is not accepting messages. Keep the draft and send after it finishes.',
+          'GENERATION_NOT_ACTIVE',
+        );
+      return run.submit(payload);
+    });
+  });
+  ipcMain.handle('codesign:v1:active-messages', (_event, raw: unknown) => {
+    const { designId } = ListActiveMessagesInputV1.parse(raw);
+    const opts = requireChatStore();
+    return listSessionActiveMessages(opts, designId).map((row) => {
+      if (row.status !== 'pending' || activeMessageRuns.has(row.generationId)) return row;
+      const recovered = {
+        ...row,
+        status: 'not-delivered' as const,
+        reason: 'The previous run ended. Recover this message to send it again.',
+      };
+      appendSessionActiveMessage(opts, recovered);
+      return recovered;
+    });
+  });
 
   const chatRowsForDesign = (designId: string): ReturnType<typeof listSessionChatMessages> => {
     const opts = chatStoreOptions();
@@ -532,6 +596,24 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       },
     );
 
+    const activeMessages = new ActiveRunMessages(
+      designId,
+      id,
+      (message) => {
+        appendSessionActiveMessage(requireChatStore(), message);
+        try {
+          sendEvent({ ...baseCtx, type: 'active_message', activeMessage: message });
+        } catch (error) {
+          logIpc.warn('active-message.event.delivery-failed', {
+            ...baseCtx,
+            messageId: message.messageId,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+      input.signal,
+    );
+    activeMessageRuns.set(id, activeMessages);
     return generateViaAgent(
       {
         ...input,
@@ -558,6 +640,7 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
       },
       {
         fs,
+        activeMessages,
         runtimeVerify: (source, context) =>
           withStableWorkspacePath(designId, () =>
             makeRuntimeVerifier({ workspaceRoot: currentWorkspaceRoot() })(source, context),
@@ -673,7 +756,15 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
             // The second pattern catches the cancel-mid-stream case where only
             // the opening tag has landed.
             const finalText = finalAssistantTextForTurn(rawText, turnTextBuffer);
-            sendEvent({ ...baseCtx, type: 'turn_end', finalText });
+            const chatPersisted = activeMessages.hasAcceptedMessages;
+            if (chatPersisted && finalText.trim()) {
+              appendSessionChatMessage(requireChatStore(), {
+                designId,
+                kind: 'assistant_text',
+                payload: { text: finalText },
+              });
+            }
+            sendEvent({ ...baseCtx, type: 'turn_end', finalText, chatPersisted });
             return;
           }
           if (event.type === 'agent_end') {
@@ -682,13 +773,21 @@ export function registerGenerateIpc({ db, getMainWindow }: RegisterGenerateIpcDe
           }
         },
       },
-    ).then((result) => ({
-      ...result,
-      artifacts: result.artifacts.map((artifact) => ({
-        ...artifact,
-        content: resolveLocalAssetRefs(artifact.content, fsMap),
-      })),
-    }));
+    )
+      .finally(() => {
+        try {
+          activeMessages.close();
+        } finally {
+          activeMessageRuns.delete(id);
+        }
+      })
+      .then((result) => ({
+        ...result,
+        artifacts: result.artifacts.map((artifact) => ({
+          ...artifact,
+          content: resolveLocalAssetRefs(artifact.content, fsMap),
+        })),
+      }));
   };
 
   /** In-flight requests: generationId → AbortController */

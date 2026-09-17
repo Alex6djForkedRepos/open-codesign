@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export {
+  ActiveRunMessageInputV1,
+  ActiveRunMessageV1,
+  ListActiveMessagesInputV1,
+} from './active-messages';
+
 export const ProviderId = z.enum([
   'anthropic',
   'openai',

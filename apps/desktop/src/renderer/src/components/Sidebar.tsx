@@ -101,6 +101,10 @@ export function Sidebar({ prefillPrompt }: SidebarProps) {
   const _sidebarCollapsed = useCodesignStore((s) => s.sidebarCollapsed);
   const _setSidebarCollapsed = useCodesignStore((s) => s.setSidebarCollapsed);
   const sendPrompt = useCodesignStore((s) => s.sendPrompt);
+  const sendActiveMessage = useCodesignStore((s) => s.sendActiveMessage);
+  const activeMessagesByDesign = useCodesignStore((s) => s.activeMessagesByDesign);
+  const recoverActiveMessage = useCodesignStore((s) => s.recoverActiveMessage);
+  const activeMessages = currentDesignId ? (activeMessagesByDesign[currentDesignId] ?? []) : [];
 
   const promptInputRef = useRef<PromptInputHandle>(null);
   const handlePickStarter = (starterPrompt: string): void => {
@@ -159,6 +163,47 @@ export function Sidebar({ prefillPrompt }: SidebarProps) {
           empty={<EmptyState onPickStarter={handlePickStarter} />}
         />
         <AskModal />
+        <div aria-live="polite" className="space-y-[var(--space-2)]">
+          {activeMessages
+            .filter((message) => message.status !== 'delivered')
+            .map((message) => (
+              <div
+                key={message.messageId}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-[var(--space-3)] text-[var(--text-sm)]"
+              >
+                <p className="text-[var(--color-text-secondary)]">
+                  {t(message.mode === 'steer' ? 'activeMessages.steer' : 'activeMessages.queue')}
+                  {' · '}
+                  {t(
+                    message.status === 'pending'
+                      ? 'activeMessages.pending'
+                      : 'activeMessages.notDelivered',
+                  )}
+                </p>
+                <p className="whitespace-pre-wrap break-words text-[var(--color-text-primary)]">
+                  {message.text}
+                </p>
+                {message.reason ? (
+                  <p className="text-[var(--color-text-muted)]">{message.reason}</p>
+                ) : null}
+                <button
+                  type="button"
+                  className="mt-[var(--space-2)] text-[var(--color-text-secondary)] underline"
+                  onClick={() => {
+                    recoverActiveMessage(message.designId, message.messageId);
+                    promptInputRef.current?.focus();
+                  }}
+                >
+                  {t('activeMessages.recover')}
+                </button>
+                {message.status === 'pending' ? (
+                  <p className="text-[var(--color-text-muted)]">
+                    {t('activeMessages.recoverPending')}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+        </div>
       </div>
 
       {/* Skill chips + prompt input + model/tokens line */}
@@ -167,6 +212,7 @@ export function Sidebar({ prefillPrompt }: SidebarProps) {
         <PromptInput
           ref={promptInputRef}
           onSubmit={handleSubmit}
+          onActiveSubmit={sendActiveMessage}
           onCancel={cancelGeneration}
           isGenerating={isGenerating}
           onImportFiles={async (input) => {

@@ -21,6 +21,7 @@ import { formatUntrustedContext } from './lib/context-format.js';
 import { type CoreLogger, NOOP_LOGGER } from './logger.js';
 import { composeSystemPrompt, type PromptComposeOptions } from './prompts/index.js';
 
+export { ActiveRunMessages } from './active-messages.js';
 export type { AgentEvent, GenerateViaAgentDeps } from './agent.js';
 export { generateViaAgent } from './agent.js';
 export type {

@@ -36,4 +36,22 @@ describe('prompt composer structure', () => {
     expect(html).not.toContain('type="submit"');
     expect(html).toContain('aria-live="polite"');
   });
+
+  it('exposes follow-up, steering, Stop, and text-only boundary guidance for active runs', () => {
+    const html = renderToStaticMarkup(
+      <PromptInput
+        onSubmit={vi.fn()}
+        onActiveSubmit={vi.fn(async () => {})}
+        onCancel={vi.fn()}
+        isGenerating
+      />,
+    );
+    expect(html).toContain('Queue follow-up');
+    expect(html).toContain('Steer next step');
+    expect(html).toContain('aria-label="Stop');
+    expect(html).toContain('type="submit"');
+    expect(html).toContain('text-only');
+    expect(html).toContain('tool batch');
+    expect(html).toContain('permission request');
+  });
 });

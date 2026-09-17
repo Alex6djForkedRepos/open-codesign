@@ -1,4 +1,5 @@
 import { useT } from '@open-codesign/i18n';
+import type { ActiveRunMessageV1 } from '@open-codesign/shared';
 import { Tooltip } from '@open-codesign/ui';
 import { ArrowUp, Square } from 'lucide-react';
 import {
@@ -128,6 +129,7 @@ function resizeTextarea(el: HTMLTextAreaElement): void {
 
 export interface PromptInputProps {
   onSubmit: (prompt: string) => void;
+  onActiveSubmit?: (prompt: string, mode: ActiveRunMessageV1['mode']) => Promise<void>;
   onCancel: () => void;
   isGenerating: boolean;
   /** Optional content rendered above the textarea, inside the composer card. */
@@ -156,13 +158,27 @@ export interface PromptInputHandle {
  *   Shift+Enter     — newline
  */
 export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(function PromptInput(
-  { onSubmit, onCancel, isGenerating, contextSummary, leadingAction, onImportFiles },
+  {
+    onSubmit,
+    onActiveSubmit,
+    onCancel,
+    isGenerating,
+    contextSummary,
+    leadingAction,
+    onImportFiles,
+  },
   ref,
 ) {
   const t = useT();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const compositionActiveRef = useRef(false);
-  const [prompt, setPrompt] = useState('');
+  const currentDesignId = useCodesignStore((s) => s.currentDesignId);
+  const prompt = useCodesignStore((s) => s.composerDrafts[s.currentDesignId ?? ''] ?? '');
+  const setComposerDraft = useCodesignStore((s) => s.setComposerDraft);
+  const setPrompt = (value: string) => setComposerDraft(value, currentDesignId);
+  const sending = useCodesignStore(
+    (s) => s.activeMessageSendingByDesign[s.currentDesignId ?? ''] ?? false,
+  );
   const generationStage = useCodesignStore((s) => s.generationStage);
   const generationStartedAt = useCodesignStore((s) => {
     const currentDesignId = s.currentDesignId;
@@ -241,9 +257,19 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
 
   function handleSubmit(e: FormEvent): void {
     e.preventDefault();
-    if (!prompt.trim() || isGenerating) return;
+    if (!prompt.trim() || sending) return;
+    if (isGenerating) {
+      submitActive('follow-up');
+      return;
+    }
     onSubmit(prompt.trim());
     setPrompt('');
+  }
+
+  function submitActive(mode: ActiveRunMessageV1['mode']): void {
+    if (!prompt.trim() || sending || !onActiveSubmit) return;
+    // The store reports rejection through the existing toast path and retains the draft.
+    void onActiveSubmit(prompt, mode).catch(() => {});
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -283,7 +309,7 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
     await onImportFiles({ source: 'clipboard', ...payload });
   }
 
-  const canSend = prompt.trim().length > 0 && !isGenerating;
+  const canSend = prompt.trim().length > 0 && !sending && (!isGenerating || !!onActiveSubmit);
   const sendDisabledReason = isGenerating
     ? t('disabledReason.generatingInProgress')
     : t('disabledReason.typePromptToSend');
@@ -328,6 +354,29 @@ export const PromptInput = forwardRef<PromptInputHandle, PromptInputProps>(funct
             style={{ fontFamily: 'var(--font-sans)' }}
           />
         </div>
+        {isGenerating && onActiveSubmit ? (
+          <div className="px-[var(--space-3)] text-[var(--text-sm)] text-[var(--color-text-muted)]">
+            <p>{t('activeMessages.boundary')}</p>
+            <p>{t('activeMessages.textOnly')}</p>
+            <div className="flex flex-wrap gap-[var(--space-2)] py-[var(--space-2)]">
+              <button
+                type="submit"
+                disabled={!canSend}
+                className="rounded-[var(--radius-md)] bg-[var(--color-accent)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--color-on-accent)] disabled:opacity-50"
+              >
+                {t('activeMessages.queue')}
+              </button>
+              <button
+                type="button"
+                disabled={!canSend}
+                onClick={() => submitActive('steer')}
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--color-text-primary)] disabled:opacity-50"
+              >
+                {t('activeMessages.steer')}
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="codesign-prompt-actions flex items-center justify-between gap-[var(--space-2)] p-[var(--space-2)]">
           <div className="min-w-0">{leadingAction}</div>
           {runningLabel ? (

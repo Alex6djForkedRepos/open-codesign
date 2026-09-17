@@ -14,6 +14,7 @@ import {
   STORED_DESIGN_SYSTEM_SCHEMA_VERSION,
 } from '@open-codesign/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ActiveRunMessages } from './active-messages';
 
 const loadBuiltinSkillsMock = vi.fn(async (): Promise<LoadedSkill[]> => []);
 
@@ -96,6 +97,9 @@ let scriptedAgent: AgentScript = { assistantText: '' };
 
 vi.mock('@mariozechner/pi-agent-core', () => {
   class MockAgent {
+    clearAllQueues(): void {}
+    steer(): void {}
+    followUp(): void {}
     readonly state: { messages: AgentMessage[] };
     private readonly call: AgentCall;
     constructor(options: AgentOptions) {
@@ -419,6 +423,52 @@ afterEach(() => {
 });
 
 describe('generateViaAgent()', () => {
+  it('invalidates earlier done verification when a subsequent instruction enters the agent', async () => {
+    const active = new ActiveRunMessages('design', 'run', vi.fn());
+    const bind = active.bind.bind(active);
+    vi.spyOn(active, 'bind').mockImplementation((agent) => {
+      bind(agent);
+      active.submit({
+        schemaVersion: 1,
+        designId: 'design',
+        generationId: 'run',
+        messageId: 'new',
+        mode: 'follow-up',
+        text: 'Revise it',
+      });
+    });
+    const message = {
+      role: 'user' as const,
+      content: [{ type: 'text' as const, text: 'Revise it' }],
+      timestamp: 1,
+      codesignMessageId: 'new',
+    };
+    scriptedAgent = {
+      assistantText: 'Old verification is not enough',
+      events: [{ type: 'message_start', message }],
+    };
+    const result = await generateViaAgent(
+      {
+        prompt: 'Continue',
+        history: [],
+        model: MODEL,
+        apiKey: 'sk-test',
+        initialResourceState: resourceState({
+          mutationSeq: 1,
+          lastDone: {
+            status: 'ok',
+            path: 'App.jsx',
+            mutationSeq: 1,
+            errorCount: 0,
+            checkedAt: new Date().toISOString(),
+          },
+        }),
+      },
+      { fs: makeStubFs({ 'App.jsx': SAMPLE_HTML }), activeMessages: active },
+    );
+    expect(result.resourceState?.lastDone).toBeNull();
+    expect(result.warnings).toEqual([expect.stringContaining('did not call done')]);
+  });
   it('throws CodesignError on empty prompt (matches generate())', async () => {
     await expect(
       generateViaAgent({ prompt: '  ', history: [], model: MODEL, apiKey: 'sk-test' }),

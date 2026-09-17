@@ -1,4 +1,5 @@
 import type {
+  ActiveRunMessageV1,
   ChatAppendInput,
   ChatMessageRow,
   ChatToolCallPayload,
@@ -27,6 +28,7 @@ import type {
 } from '../../preload/index';
 import { recordAction } from './lib/action-timeline';
 import { tr, uniqueFiles } from './store/lib/locale';
+import { makeActiveMessagesSlice } from './store/slices/active-messages';
 import { makeChatSlice } from './store/slices/chat';
 import { makeCommentsSlice } from './store/slices/comments';
 import { makeDesignsSlice } from './store/slices/designs';
@@ -121,6 +123,14 @@ export interface CommentBubbleAnchor {
 }
 
 export interface CodesignState {
+  composerDrafts: Record<string, string>;
+  activeMessagesByDesign: Record<string, ActiveRunMessageV1[]>;
+  activeMessageSendingByDesign: Record<string, boolean>;
+  setComposerDraft: (text: string, designId?: string | null) => void;
+  sendActiveMessage: (text: string, mode: ActiveRunMessageV1['mode']) => Promise<void>;
+  syncActiveMessages: (designId?: string) => Promise<void>;
+  reconcileActiveMessage: (message: ActiveRunMessageV1) => void;
+  recoverActiveMessage: (designId: string, messageId: string) => void;
   previewSource: string | null;
   /** LRU cache of `previewSource` per design id, capped to PREVIEW_POOL_LIMIT.
    *  PreviewPane renders one (display:none) iframe per entry so switching back
@@ -463,6 +473,9 @@ export interface CodesignState {
 
 export const useCodesignStore = create<CodesignState>((set, get) => ({
   // ---- initial state ----
+  composerDrafts: {},
+  activeMessagesByDesign: {},
+  activeMessageSendingByDesign: {},
   previewSource: null,
   previewSourceByDesign: {},
   recentDesignIds: [],
@@ -565,6 +578,7 @@ export const useCodesignStore = create<CodesignState>((set, get) => ({
   activeReportLocalId: null,
 
   // ---- slice-owned actions ----
+  ...makeActiveMessagesSlice(set, get),
   ...makeDiagnosticsSlice(set, get),
   ...makeGenerationSlice(set, get),
   ...makeDesignsSlice(set, get),

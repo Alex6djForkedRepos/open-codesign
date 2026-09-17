@@ -1,4 +1,6 @@
 import type {
+  ActiveRunMessageInputV1,
+  ActiveRunMessageV1,
   CancelGenerationPayloadV1,
   ChatAppendInput,
   ChatMessage,
@@ -287,18 +289,21 @@ export interface AgentStreamEvent {
     | 'tool_call_result'
     | 'fs_updated'
     | 'agent_end'
+    | 'active_message'
     | 'error';
   designId: string;
   /** Trace ID linking this event to the main-process generation log entry.
    *  Matches the generationId from the codesign:v1:generate payload — always
    *  present because the main process supplies it from baseCtx. */
   generationId: string;
+  activeMessage?: ActiveRunMessageV1;
   // turn_start
   turnId?: string;
   // text_delta
   delta?: string;
   // turn_end
   finalText?: string;
+  chatPersisted?: boolean;
   // tool_call_start
   toolName?: string;
   command?: string;
@@ -422,6 +427,12 @@ const api = {
     } satisfies CancelGenerationPayloadV1),
   generationStatus: () =>
     ipcRenderer.invoke('codesign:v1:generation-status') as Promise<GenerationStatusResult>,
+  sendActiveMessage: (payload: ActiveRunMessageInputV1) =>
+    ipcRenderer.invoke('codesign:v1:active-message', payload) as Promise<ActiveRunMessageV1>,
+  listActiveMessages: (designId: string) =>
+    ipcRenderer.invoke('codesign:v1:active-messages', { schemaVersion: 1, designId }) as Promise<
+      ActiveRunMessageV1[]
+    >,
   generateTitle: (prompt: string) =>
     ipcRenderer.invoke('codesign:v1:generate-title', { prompt }) as Promise<string>,
   applyComment: (payload: {

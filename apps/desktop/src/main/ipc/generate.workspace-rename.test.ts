@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Agent } from '@mariozechner/pi-agent-core';
+import { createAssistantMessageEventStream, getModel } from '@mariozechner/pi-ai';
 import type { Design } from '@open-codesign/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -198,8 +200,10 @@ import { makeRuntimeVerifier } from '../done-verify';
 import { runPreview } from '../preview-runtime';
 import { preparePromptContext } from '../prompt-context';
 import {
+  appendSessionActiveMessage,
   appendSessionChatMessage,
   appendSessionToolStatus,
+  listSessionActiveMessages,
   listSessionChatMessages,
 } from '../session-chat';
 import { createDesign, initInMemoryDb, updateDesignWorkspace } from '../snapshots-db';
@@ -245,6 +249,144 @@ describe('generate IPC workspace rename coordination', () => {
     } finally {
       await rm(documentsRoot, { recursive: true, force: true });
     }
+  });
+
+  it('recovers interrupted persisted requests without starting another generation', async () => {
+    const db = initTestDb();
+    const design = createDesign(db, 'Recovered requests');
+    updateDesignWorkspace(db, design.id, defaultWorkspaceRoot);
+    appendSessionActiveMessage(
+      { db, sessionDir: db.sessionDir },
+      {
+        schemaVersion: 1,
+        designId: design.id,
+        generationId: 'previous-process',
+        messageId: 'saved',
+        mode: 'follow-up',
+        text: 'Keep this draft',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      },
+    );
+    registerGenerateIpc({ db, getMainWindow: () => null });
+    const rows = await getHandler('codesign:v1:active-messages')(null, {
+      schemaVersion: 1,
+      designId: design.id,
+    });
+    expect(rows).toMatchObject([
+      { messageId: 'saved', status: 'not-delivered', text: 'Keep this draft' },
+    ]);
+    expect(listSessionChatMessages({ db, sessionDir: db.sessionDir }, design.id)).toEqual([]);
+    expect(coreCalls.generateInputs).toEqual([]);
+  });
+
+  it.each([
+    'deliver',
+    'cancel',
+  ] as const)('tracks active-message IPC delivery without replay or cross-design leakage: %s', async (outcome) => {
+    vi.mocked(generateViaAgent).mockImplementationOnce(async (input, deps) => {
+      const messages = deps?.activeMessages;
+      if (!messages) throw new Error('Active-message bridge missing');
+      const model = getModel('openai', 'gpt-4o-mini');
+      const agent = new Agent({
+        initialState: { model },
+        streamFn: () => {
+          const stream = createAssistantMessageEventStream();
+          stream.push({
+            type: 'done',
+            reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: [{ type: 'text', text: 'done' }],
+              api: model.api,
+              provider: model.provider,
+              model: model.id,
+              usage: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+              },
+              stopReason: 'stop',
+              timestamp: Date.now(),
+            },
+          });
+          return stream;
+        },
+      });
+      messages.bind(agent);
+      agent.subscribe((event) => {
+        messages.handleEvent(event, () => {});
+        deps?.onEvent?.(event);
+      });
+      generateControl.markStarted();
+      await generateControl.waitUntilReleased();
+      if (!input.signal?.aborted) await agent.prompt('initial');
+      messages.close();
+      return { message: 'done', artifacts: [], inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    });
+    const db = initTestDb();
+    const design = createDesign(db, 'Active messages');
+    const other = createDesign(db, 'Other design');
+    const workspace = path.join(defaultWorkspaceRoot, 'active-messages');
+    await mkdir(workspace);
+    updateDesignWorkspace(db, design.id, workspace);
+    updateDesignWorkspace(db, other.id, workspace);
+    registerGenerateIpc({ db, getMainWindow: () => null });
+    const send = getHandler('codesign:v1:active-message');
+    const list = getHandler('codesign:v1:active-messages');
+    const message = {
+      schemaVersion: 1,
+      designId: design.id,
+      generationId: 'active-run',
+      messageId: 'one',
+      mode: 'follow-up',
+      text: 'Adjust the heading',
+    };
+    await expect(send(null, message)).rejects.toThrow(/not accepting/);
+    pendingFixtureGeneration = Promise.resolve(
+      getHandler('codesign:v1:generate')(null, {
+        schemaVersion: 1,
+        prompt: 'Create a poster',
+        history: [],
+        model: { provider: 'mock-provider', modelId: 'mock-model' },
+        attachments: [],
+        generationId: 'active-run',
+        designId: design.id,
+      }),
+    );
+    await generateControl.started;
+    expect(await send(null, message)).toMatchObject({ status: 'pending' });
+    expect(await send(null, message)).toMatchObject({ status: 'pending' });
+    await expect(send(null, { ...message, messageId: 'two', designId: other.id })).rejects.toThrow(
+      /changed/,
+    );
+    await expect(send(null, { ...message, text: 'Changed duplicate' })).rejects.toThrow(
+      /different request/,
+    );
+    await expect(send(null, { ...message, attachments: [] })).rejects.toThrow();
+    expect(listSessionChatMessages({ db, sessionDir: db.sessionDir }, design.id)).toEqual([]);
+    if (outcome === 'cancel')
+      getHandler('codesign:v1:cancel-generation')(null, {
+        schemaVersion: 1,
+        generationId: 'active-run',
+      });
+    generateControl.release();
+    await pendingFixtureGeneration;
+    const status = outcome === 'deliver' ? 'delivered' : 'not-delivered';
+    expect(await list(null, { schemaVersion: 1, designId: design.id })).toMatchObject([
+      { messageId: 'one', status },
+    ]);
+    expect(await send(null, message)).toMatchObject({ status });
+    expect(listSessionActiveMessages({ db, sessionDir: db.sessionDir }, other.id)).toEqual([]);
+    const rows = listSessionChatMessages({ db, sessionDir: db.sessionDir }, design.id);
+    expect(rows.filter((row) => row.kind === 'user')).toHaveLength(outcome === 'deliver' ? 1 : 0);
+    if (outcome === 'deliver') {
+      expect(rows.map((row) => row.kind)).toEqual(['assistant_text', 'user', 'assistant_text']);
+    }
+    await expect(send(null, { ...message, messageId: 'late' })).rejects.toThrow(/not accepting/);
   });
 
   it.each([

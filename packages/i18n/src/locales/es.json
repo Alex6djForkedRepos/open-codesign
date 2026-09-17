@@ -1,4 +1,18 @@
 {
+  "activeMessages": {
+    "queue": "Encolar seguimiento",
+    "steer": "Orientar el siguiente paso",
+    "pending": "En cola — aún no entregado",
+    "notDelivered": "No entregado",
+    "recover": "Recuperar como borrador",
+    "recoverPending": "Solo copia el texto; el mensaje sigue en cola. No lo reenvíes salvo que sea necesario.",
+    "boundary": "Los seguimientos esperan a que el asistente termine su turno y el lote de herramientas. Las indicaciones se entregan en el siguiente límite de paso compatible, no durante una respuesta o herramienta. Ninguna opción omite preguntas o solicitudes de permiso pendientes.",
+    "textOnly": "Durante la generación, los mensajes son solo de texto. No pueden incluir archivos, URL de referencia ni comentarios en cola.",
+    "textOnlyError": "Los mensajes activos solo admiten texto. Quita los archivos adjuntos, la URL de referencia y los comentarios en cola, o espera a que termine la generación. Se conservó el borrador.",
+    "notRunning": "Esta generación ya no está disponible. Se conservó el borrador; envíalo cuando el agente esté listo.",
+    "sendFailed": "No se aceptó el mensaje",
+    "loadFailed": "No se pudieron actualizar los mensajes activos"
+  },
   "common": {
     "appName": "open-codesign",
     "send": "Enviar",

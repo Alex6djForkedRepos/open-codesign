@@ -77,6 +77,18 @@ Preview and final verification resolve local assets relative to the source file
 inside the bound workspace. Missing assets and paths outside that workspace
 remain verification errors.
 
+While a design is generating, **Queue follow-up** (Enter) adds a text request
+for when the agent would otherwise finish. **Steer next step** supplies it after
+the current assistant response and tool batch finish; it does not interrupt
+file writes, streaming tokens, permission decisions, or an unanswered agent
+question. The current run keeps its model, reasoning setting, and workspace.
+Queued requests are explicitly marked pending until the agent receives them.
+Stop, errors, or restarting the app leave undelivered requests recoverable,
+never automatically resent. Active-run messages are text-only: remove attached
+files, reference URLs, and queued comments before sending; those drafts are not
+silently included or discarded. Individual queue editing/removal is not supported.
+Delivery receipts use the existing local pi session JSONL, not a separate database.
+
 From a blank prompt to a finished artifact, the agent plans, writes, self-checks, and ships something with hover states, tabs, and empty states already wired up:
 
 ![Generate a design from scratch](https://raw.githubusercontent.com/OpenCoworkAI/open-codesign/main/website/public/demos/generate-from-scratch.gif)

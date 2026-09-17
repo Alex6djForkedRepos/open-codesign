@@ -147,12 +147,17 @@ export function useAgentStream(): void {
             },
           };
         });
-        void appendChatMessage({
-          designId: current.designId,
-          kind: 'assistant_text',
-          payload: { text: finalText },
-        });
+        if (!event.chatPersisted) {
+          void appendChatMessage({
+            designId: current.designId,
+            kind: 'assistant_text',
+            payload: { text: finalText },
+          });
+        }
         current.lastPersistedText = finalText;
+      }
+      if (event.chatPersisted && useCodesignStore.getState().currentDesignId === event.designId) {
+        void useCodesignStore.getState().loadChatForCurrentDesign();
       }
       if (current) drainPendingTools(current, 'done');
       setStreamingAssistantText({ designId: event.designId, text: '' });
@@ -401,6 +406,18 @@ export function useAgentStream(): void {
     };
 
     const off = window.codesign.chat.onAgentEvent((event: AgentStreamEvent) => {
+      // Delivery bookkeeping must survive Stop's late-generation event filter.
+      if (event.type === 'active_message') {
+        const message = event.activeMessage;
+        if (
+          message &&
+          message.designId === event.designId &&
+          message.generationId === event.generationId
+        ) {
+          useCodesignStore.getState().reconcileActiveMessage(message);
+        }
+        return;
+      }
       if (ignoreIfCancelled(event)) return;
       switch (event.type) {
         case 'turn_start':
