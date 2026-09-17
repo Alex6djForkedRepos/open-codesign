@@ -441,6 +441,8 @@
         "baseUrl": "Base URL",
         "apiKey": "API Key",
         "apiKeyEditPlaceholder": "Leave empty to keep {{mask}}",
+        "keylessLabel": "No API key required",
+        "keylessDescription": "Only enable for endpoints that accept requests without an API key. Switching to this mode removes the stored key when you save.",
         "defaultModel": "Default model",
         "compatibilityHintTitle": "Compatibility note",
         "compatibilityHintBody": "Some coding plans, relay services, or OpenAI-compatible gateways only allow specific clients such as Claude Code, openclaw, or Hermes. Even if the API looks compatible, Open CoDesign may still be blocked by an app allowlist.",

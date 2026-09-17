@@ -198,6 +198,7 @@ export interface ProviderRow {
   wire: WireApi;
   defaultModel: string;
   hasKey: boolean;
+  requiresApiKey?: boolean;
   reasoningLevel?: ReasoningLevel;
   /** Per-provider opt-in to skip TLS verification on outbound HTTPS.
    *  Built-in providers force-ignore this flag at runtime; only surfaced
@@ -520,6 +521,7 @@ const api = {
       wire: WireApi;
       baseUrl: string;
       apiKey: string;
+      requiresApiKey?: boolean;
       defaultModel: string;
       httpHeaders?: Record<string, string>;
       queryParams?: Record<string, string>;
@@ -529,6 +531,7 @@ const api = {
     }) => ipcRenderer.invoke('config:v1:add-provider', input) as Promise<OnboardingState>,
     updateProvider: (input: {
       id: string;
+      requiresApiKey?: boolean;
       name?: string;
       baseUrl?: string;
       defaultModel?: string;
@@ -556,6 +559,7 @@ const api = {
       wire: WireApi;
       baseUrl: string;
       apiKey: string;
+      requiresApiKey?: boolean;
       httpHeaders?: Record<string, string>;
       allowPrivateNetwork?: boolean;
       tlsRejectUnauthorized?: boolean;

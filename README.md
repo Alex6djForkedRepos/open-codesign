@@ -193,6 +193,8 @@ On first launch, Open CoDesign opens the Settings page. Pick the path that match
 - **API key** — paste Anthropic (`sk-ant-...`), OpenAI (`sk-...`), Google Gemini, OpenRouter, SiliconFlow, DeepSeek, or another supported provider key.
 - **Local / keyless** — use Ollama or an IP-allowlisted OpenAI-compatible gateway.
 
+For a custom endpoint that accepts requests without an API key, select **No API key required** in the custom-provider form. Choose the endpoint's wire protocol (including **OpenAI Responses** when appropriate), enter its base URL and default model, and leave the key empty. Local/private endpoint testing still requires the separate network confirmation. Automatic model discovery never sends API keys; for authenticated endpoints, enter a key and click **Test connection**. Switching an existing provider to keyless removes its stored key on save; switching back requires a stored or newly entered key.
+
 Credentials stay in `~/.config/open-codesign/config.toml` and the ChatGPT OAuth token store under the app config directory. Nothing leaves your machine unless your chosen model route requires it.
 
 ### 3. Type your first prompt

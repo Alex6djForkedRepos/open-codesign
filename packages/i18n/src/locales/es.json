@@ -379,6 +379,8 @@
         "baseUrl": "URL base",
         "apiKey": "Clave API",
         "apiKeyEditPlaceholder": "Dejar vacío para mantener {{mask}}",
+        "keylessLabel": "No se requiere clave API",
+        "keylessDescription": "Activa esta opción solo para endpoints que acepten solicitudes sin clave API. Al cambiar a este modo, la clave guardada se eliminará al guardar.",
         "defaultModel": "Modelo predeterminado",
         "compatibilityHintTitle": "Nota de compatibilidad",
         "compatibilityHintBody": "Algunos planes de programación, servicios de retransmisión o pasarelas compatibles con OpenAI solo permiten clientes específicos como Claude Code, openclaw o Hermes. Incluso si la API parece compatible, Open CoDesign aún podría ser bloqueado por una lista de aplicaciones permitidas.",
