@@ -117,7 +117,7 @@ function designMdWorkspaceFindings(
 function formatWarnings(warnings: DoneError[]): string {
   return warnings.length === 0
     ? ''
-    : `\n\nNon-blocking design metadata warnings (report these limitations in the summary):\n${warnings
+    : `\n\nNon-blocking design metadata warnings:\n${warnings
         .map((warning) => `- ${warning.source}: ${warning.message}`)
         .join('\n')}`;
 }
@@ -512,7 +512,7 @@ export function makeDoneTool(
         const text =
           status === 'ok'
             ? warnings.length > 0
-              ? 'ok — DESIGN.md has no blocking errors; extension warnings remain.'
+              ? 'ok — DESIGN.md has no blocking errors; non-blocking metadata warnings remain.'
               : 'ok — DESIGN.md is valid Google design.md.'
             : `has_errors\n${errors.map((e) => `- ${e.message}`).join('\n')}`;
         return { content: [{ type: 'text', text: text + formatWarnings(warnings) }], details };

@@ -15,20 +15,34 @@ describe('done diagnostic durability', () => {
       details: {
         status: 'has_errors',
         path: 'App.jsx',
-        summary: 's'.repeat(20_000),
+        summary: '"'.repeat(20_000),
         errors: Array.from({ length: 100 }, () => ({
-          message: 'e'.repeat(20_000),
-          source: 'DESIGN.md',
+          message: '\n'.repeat(20_000),
+          source: '\\'.repeat(20_000),
         })),
         warnings: Array.from({ length: 100 }, () => ({
-          message: 'w'.repeat(20_000),
-          source: 'DESIGN.md',
+          message: '\t'.repeat(20_000),
+          source: '"'.repeat(20_000),
         })),
       },
     };
     const compacted = compactToolResultForHistory('done', result);
-    expect(compacted).toMatchObject({ details: { errorCount: 100, warningCount: 100 } });
-    expect(JSON.stringify(compacted).length).toBeLessThan(16_000);
+    expect(compacted).toMatchObject({
+      details: {
+        errorCount: 100,
+        warningCount: 100,
+        summary: `${'"'.repeat(1_997)}...`,
+        errorsPreview: Array.from({ length: 6 }, () => ({
+          message: `${'\n'.repeat(997)}...`,
+          source: `${'\\'.repeat(253)}...`,
+        })),
+        warningsPreview: Array.from({ length: 6 }, () => ({
+          message: `${'\t'.repeat(997)}...`,
+          source: `${'"'.repeat(253)}...`,
+        })),
+      },
+    });
+    expect(JSON.stringify(compacted).length).toBeGreaterThan(16_000);
     expect(compactToolResultForHistory('done', compacted)).toEqual(compacted);
   });
 

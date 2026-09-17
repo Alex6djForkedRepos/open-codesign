@@ -78,6 +78,14 @@ components:
     expect(result.details.errors).toEqual([]);
     expect(result.details.warnings).toHaveLength(2);
     expect(result.details.warnings?.every((warning) => warning.source === 'DESIGN.md')).toBe(true);
+    expect(JSON.stringify(result.content)).not.toContain('report these limitations in the summary');
+    if (path === 'DESIGN.md') {
+      expect(result.content).toEqual([
+        expect.objectContaining({
+          text: expect.stringContaining('non-blocking metadata warnings remain'),
+        }),
+      ]);
+    }
     expect(result.content).toEqual([
       expect.objectContaining({
         text: expect.stringContaining('Non-blocking design metadata warnings'),
