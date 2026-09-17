@@ -278,6 +278,7 @@ Add a `SKILL.md` to any project to teach the model your own taste.
 
 - **Readable preview controls** — Comment mode, zoom, and Export retain visible labels and wrap below file tabs when space is tight. Zoom and export menus stay inside the window; use arrow keys / Home / End to navigate, Enter to select, and Escape to close and return focus. Preview zoom changes the artifact's display scale, not the app's control sizes or the artifact's source dimensions.
 - **Phone / tablet / desktop preview** — true responsive frames, switch with one click
+- **Bounded interaction self-checks** — `preview` can exercise up to 16 declarative steps and report the final screen and per-step failures. For native single-selection dropdowns, use `{"action":"select","selector":"#category","value":"work"}`, then assert the control's exact `value` and linked summary text. Selectors must uniquely identify a visible control; disabled selects/fieldsets/options/optgroups, multiple selects, and missing or duplicate option values are rejected. Values are capped at 2,000 characters; the existing 2-second step and 20-second interaction budgets apply. This does not verify untested routes or persistence between preview calls.
 - **Files panel** — inspect multi-file artifacts (HTML, CSS, JS) before export
 - **Instant design switching** — the last five designs keep their preview iframes alive, so Hub ↔ Workspace and sidebar navigation stay zero-delay
 - **Connection diagnostic panel** — one-click test for any provider, with actionable errors

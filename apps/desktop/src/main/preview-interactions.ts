@@ -10,6 +10,8 @@ interface PreviewElement {
   disabled?: boolean;
   readOnly?: boolean;
   type?: string;
+  multiple?: boolean;
+  options?: ArrayLike<PreviewElement>;
   form?: PreviewElement | null;
   parentElement: PreviewElement | null;
   getAttribute(name: string): string | null;
@@ -17,6 +19,7 @@ interface PreviewElement {
   getClientRects(): { length: number };
   contains(element: PreviewElement | null): boolean;
   closest(selector: string): PreviewElement | null;
+  matches(selector: string): boolean;
   scrollIntoView(options: { block: string; inline: string }): void;
   focus(): void;
   dispatchEvent(event: object): boolean;
@@ -93,6 +96,30 @@ function inspectStep(step: PreviewStep): StepAttempt {
   if (!visible) return fail('Element is not visible', true);
   if (element.disabled || element.closest('[inert], [aria-disabled="true"]')) {
     return fail('Element is disabled or inert');
+  }
+  if (step.action === 'select') {
+    if (element.tagName !== 'SELECT' || element.options === undefined) {
+      return fail('select requires a native HTML select element');
+    }
+    if (element.multiple) return fail('select does not support multiple-selection controls');
+    if (element.matches(':disabled')) return fail('Select is disabled by its fieldset');
+    const options = Array.from(element.options).filter((option) => option.value === step.value);
+    if (options.length === 0) {
+      return fail(`No option with value ${JSON.stringify(step.value)} exists`);
+    }
+    if (options.length > 1) {
+      return fail(
+        `Ambiguous option value ${JSON.stringify(step.value)}: matched ${options.length} options`,
+      );
+    }
+    const option = options[0];
+    if (option?.disabled || option?.closest('optgroup[disabled]')) {
+      return fail(
+        `Option ${JSON.stringify(step.value)} is disabled or belongs to a disabled optgroup`,
+      );
+    }
+    element.scrollIntoView({ block: 'center', inline: 'center' });
+    return { ok: true };
   }
   if (step.action === 'click' || (step.action === 'press' && step.key === 'Enter')) {
     const form = element.form ?? element.closest('form');
@@ -178,7 +205,19 @@ export function collectVisibleEvidence(): string {
         .join(' ');
       const value =
         element.value === undefined ? '' : ` value=${JSON.stringify(element.value.slice(0, 200))}`;
-      return `<${element.tagName.toLowerCase()} ${attrs}>${(element.innerText ?? '').slice(0, 160)}${value}`;
+      const options =
+        element.options === undefined
+          ? ''
+          : ` options=${JSON.stringify(
+              Array.from(element.options)
+                .slice(0, 40)
+                .map((option) => ({
+                  value: option.value?.slice(0, 200),
+                  label: option.innerText?.slice(0, 160),
+                  disabled: Boolean(option.disabled || option.closest('optgroup[disabled]')),
+                })),
+            )}`;
+      return `<${element.tagName.toLowerCase()} ${attrs}>${(element.innerText ?? '').slice(0, 160)}${value}${options}`;
     });
   return `Visible text:\n${(document.body.innerText ?? '').slice(0, 8000)}\nControls:\n${controls.join('\n')}`.slice(
     0,
@@ -214,6 +253,7 @@ export async function runPreviewSteps(
     evaluate: (fn: typeof inspectStep, step: PreviewStep) => Promise<StepAttempt>;
     mouse: Pick<Page['mouse'], 'click'>;
     keyboard: Pick<Page['keyboard'], 'press'>;
+    select: Page['select'];
   },
   steps: PreviewStep[],
   signal?: AbortSignal,
@@ -241,6 +281,17 @@ export async function runPreviewSteps(
               Math.max(1, deadline - Date.now()),
               signal,
             );
+          } else if (step.action === 'select') {
+            const selected = await boundedPreview(
+              page.select(step.selector, step.value),
+              Math.max(1, deadline - Date.now()),
+              signal,
+            );
+            if (selected.length !== 1 || selected[0] !== step.value) {
+              throw new Error(
+                `Select did not choose value ${JSON.stringify(step.value)}; received ${JSON.stringify(selected)}`,
+              );
+            }
           } else if (step.action === 'press') {
             await boundedPreview(
               page.keyboard.press(step.key),

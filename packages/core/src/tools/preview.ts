@@ -29,6 +29,10 @@ export const PreviewStep = Type.Union([
     { additionalProperties: false },
   ),
   Type.Object(
+    { action: Type.Literal('select'), selector: Selector, value: BoundedText },
+    { additionalProperties: false },
+  ),
+  Type.Object(
     {
       action: Type.Literal('press'),
       selector: Selector,
@@ -201,8 +205,10 @@ export function makePreviewTool(
       'console errors (≤50), failing asset requests (≤20), DOM outline ' +
       '(nodes/width/height/load ms), and — on vision-capable models — a ' +
       'screenshot data URL. Call BEFORE `done` to self-check. ' +
-      'Optionally set viewport and up to 16 declarative steps (click/fill/press/assert). ' +
+      'Optionally set viewport and up to 16 declarative steps (click/fill/select/press/assert). ' +
       'Use unique CSS selectors (max 256 chars); fill/value max 2000 chars. ' +
+      'select chooses one enabled option by its exact value in a native single-selection <select>; ' +
+      'disabled controls/options and multiple selects are rejected. ' +
       'press supports Enter/Escape/Tab. assert requires visible, text (contains), or value (exact); ' +
       'visible:false accepts hidden/absent elements. Steps run in order, stop on first failure, ' +
       'and return evidence plus the final screen, not proof of untested product behavior. ' +

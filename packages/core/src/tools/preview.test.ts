@@ -144,7 +144,13 @@ describe('makePreviewTool', () => {
     { steps: [{ action: 'click', selector: '' }] },
     { steps: [{ action: 'click', selector: 'x'.repeat(257) }] },
     { steps: [{ action: 'fill', selector: '#x', value: 'x'.repeat(2001) }] },
+    { steps: [{ action: 'select', selector: '#x', value: 'x'.repeat(2001) }] },
+    { steps: [{ action: 'select', selector: '#x' }] },
+    { steps: [{ action: 'select', selector: '#x', value: ['work'] }] },
+    { steps: [{ action: 'select', selector: '#x', value: 'work', label: 'Work' }] },
     { steps: [{ action: 'press', selector: '#x', key: 'F12' }] },
+    { steps: [{ action: 'press', selector: '#x', key: 'ArrowDown' }] },
+    { steps: [{ action: 'press', selector: '#x', key: 'End' }] },
     { steps: [{ action: 'assert', selector: '#x' }] },
     { steps: [{ action: 'assert', selector: '#x', text: '' }] },
     { steps: [{ action: 'click', selector: '#x', script: 'alert(1)' }] },
@@ -182,5 +188,19 @@ describe('makePreviewTool', () => {
     const result = await makePreviewTool(runPreview).execute('call', { path: 'App.jsx' });
     expect(result.details.ok).toBe(true);
     expect(JSON.stringify(result.content)).toContain('isolated browser terminated');
+  });
+
+  it('propagates select steps and accepts empty and maximum-length option values', async () => {
+    const input: PreviewInput = {
+      path: 'App.jsx',
+      steps: [
+        { action: 'select', selector: '#category', value: 'work' },
+        { action: 'select', selector: '#category', value: '' },
+        { action: 'select', selector: '#category', value: 'x'.repeat(2000) },
+      ],
+    };
+    const runPreview = vi.fn().mockResolvedValue(cannedResult());
+    await makePreviewTool(runPreview).execute('call', input);
+    expect(runPreview).toHaveBeenCalledWith({ ...input, vision: false });
   });
 });
