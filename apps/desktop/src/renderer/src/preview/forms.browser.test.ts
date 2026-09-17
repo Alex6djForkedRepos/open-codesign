@@ -33,15 +33,25 @@ describe.skipIf(!chrome)('interactive preview form boundary in system Chrome', (
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing fixture server port');
     endpoint = `http://127.0.0.1:${address.port}/submit`;
-    expect(await (await fetch(endpoint, { method: 'POST' })).text()).toBe('received');
+    expect(
+      await (await fetch(endpoint, { method: 'POST', headers: { Connection: 'close' } })).text(),
+    ).toBe('received');
     expect(requests).toEqual(['POST /submit']);
     browser = await puppeteer.launch({ executablePath: chrome, headless: true });
   }, 30_000);
 
   afterAll(async () => {
-    await browser?.close();
-    if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
-  });
+    try {
+      await browser?.close();
+    } finally {
+      if (server) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => (error ? reject(error) : resolve()));
+          server.closeAllConnections();
+        });
+      }
+    }
+  }, 30_000);
 
   async function mount(source: string, path = 'App.jsx', legacy = false) {
     const page = await browser.newPage();
