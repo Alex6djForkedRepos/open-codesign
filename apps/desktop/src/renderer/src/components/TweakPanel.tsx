@@ -5,14 +5,16 @@ import {
   type EditmodeTokenValue,
   parseEditmodeBlock,
   parseTweakSchema,
-  replaceEditmodeBlock,
   type TokenSchemaEntry,
   type TweakSchema,
 } from '@open-codesign/shared';
 import { RotateCcw, SlidersHorizontal, X } from 'lucide-react';
 import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
-import { stablePreviewSourceKey } from '../preview/helpers';
-import { persistTweakTokensToWorkspace } from '../preview/tweak-persistence';
+import {
+  createTweakPersistDebounce,
+  persistTweakTokensToWorkspace,
+} from '../preview/tweak-persistence';
+import type { WorkspacePreviewReadResult } from '../preview/workspace-source';
 import { useCodesignStore } from '../store';
 import {
   ColorSwatch,
@@ -127,16 +129,28 @@ function TokenRow({
 export function TweakPanel({
   iframeRef,
   presentation = 'floating',
+  source,
+  onPersist,
 }: {
   iframeRef: RefObject<HTMLIFrameElement | null>;
   presentation?: 'floating' | 'inspector';
+  source?: WorkspacePreviewReadResult;
+  onPersist?: (source: WorkspacePreviewReadResult) => void;
 }) {
   const t = useT();
-  const previewSource = useCodesignStore((s) => s.previewSource);
+  const storedSource = useCodesignStore((s) => s.previewSource);
+  const previewSource = source?.content ?? storedSource;
   const setPreviewSource = useCodesignStore((s) => s.setPreviewSource);
   const currentDesignId = useCodesignStore((s) => s.currentDesignId);
+  const isGenerating = useCodesignStore(
+    (s) => currentDesignId !== null && s.generationByDesign?.[currentDesignId] !== undefined,
+  );
   const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const persistDebounce = useMemo(createTweakPersistDebounce, []);
+  const mountedRef = useRef(true);
+  const pendingRef = useRef(false);
 
   const block: EditmodeBlock | null = useMemo(
     () => (previewSource ? parseEditmodeBlock(previewSource) : null),
@@ -147,58 +161,56 @@ export function TweakPanel({
     () => (previewSource ? parseTweakSchema(previewSource) : null),
     [previewSource],
   );
-  const sourceKey = useMemo(
-    () => (previewSource ? stablePreviewSourceKey(previewSource) : ''),
-    [previewSource],
-  );
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: currentDesignId and sourceKey intentionally reset the transient panel state when the user switches designs or a new artifact structure loads.
-  useEffect(() => {
-    setOpen(false);
-  }, [currentDesignId, sourceKey]);
-
   // Live working copy — drives the UI and the postMessage stream to the iframe
   // without paying for a full srcdoc reload on every keystroke. Persistence
-  // back into `previewSource` is debounced (see persistTimer below).
+  // back into the workspace is debounced.
   const [liveTokens, setLiveTokens] = useState<EditmodeTokens | null>(null);
-  const liveSigRef = useRef<string>('');
-  useEffect(() => {
-    if (!block) {
-      setLiveTokens(null);
-      liveSigRef.current = '';
-      return;
-    }
-    const sig = Object.keys(block.tokens).sort().join('|');
-    // Only resync from store when the *schema* (key set) changes — this happens
-    // on a new artifact load. Otherwise we'd clobber the user's in-flight edits
-    // each time `setPreviewSource` settles from our own debounce.
-    if (sig !== liveSigRef.current) {
-      setLiveTokens({ ...block.tokens });
-      liveSigRef.current = sig;
-    }
-  }, [block]);
-
   const initialTokensRef = useRef<EditmodeTokens | null>(null);
   useEffect(() => {
+    if (pendingRef.current || saving) return;
     if (!block) {
+      setLiveTokens(null);
       initialTokensRef.current = null;
       return;
     }
-    const sig = Object.keys(block.tokens).sort().join('|');
-    if (initialTokensRef.current === null || liveSigRef.current !== sig) {
-      initialTokensRef.current = { ...block.tokens };
-    }
-  }, [block]);
+    setLiveTokens({ ...block.tokens });
+    initialTokensRef.current = { ...block.tokens };
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: 'codesign:tweaks:update', tokens: block.tokens },
+      '*',
+    );
+  }, [block, iframeRef, saving]);
 
   // Debounced persist back to the artifact source so reload / snapshot / export
   // see the tweaked state. Live updates have already gone via postMessage.
-  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  // A file/design switch must invalidate even a save already awaiting a file read.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: identity invalidates pending writes.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      mountedRef.current = false;
+      pendingRef.current = false;
+      persistDebounce.cancel();
     };
-  }, []);
+  }, [currentDesignId, source?.path, persistDebounce]);
+
+  useEffect(() => {
+    if (!isGenerating || !persistDebounce.hasPending()) return;
+    persistDebounce.cancel();
+    pendingRef.current = false;
+    setLiveTokens(block ? { ...block.tokens } : null);
+    if (block) {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: 'codesign:tweaks:update', tokens: block.tokens },
+        '*',
+      );
+    }
+    useCodesignStore.getState().pushToast({
+      variant: 'error',
+      title: t('projects.notifications.saveFailed'),
+      description: 'Tweak save cancelled because generation started.',
+    });
+  }, [isGenerating, block, iframeRef, t, persistDebounce]);
 
   useEffect(() => {
     if (!open) return;
@@ -229,44 +241,61 @@ export function TweakPanel({
   }
 
   function schedulePersist(tokens: EditmodeTokens): void {
-    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-    persistTimerRef.current = setTimeout(() => {
-      persistTimerRef.current = null;
-      const source = useCodesignStore.getState().previewSource;
-      if (!source) return;
-      const designId = useCodesignStore.getState().currentDesignId;
+    const designId = currentDesignId;
+    const path = source?.path;
+    if (!previewSource) return;
+    pendingRef.current = true;
+    persistDebounce.schedule(previewSource, tokens, (baseSource, nextTokens) => {
       const files = window.codesign?.files;
-      if (!designId || !files?.write) {
-        setPreviewSource(replaceEditmodeBlock(source, tokens));
-        return;
-      }
-
-      persistQueueRef.current = persistQueueRef.current
-        .catch(() => undefined)
-        .then(async () => {
-          const latestSource = useCodesignStore.getState().previewSource ?? source;
-          const result = await persistTweakTokensToWorkspace({
-            designId,
-            previewSource: latestSource,
-            tokens,
-            read: files.read,
-            write: files.write,
-          });
-          if (
-            shouldSyncPreviewSourceAfterTweakPersist(result) &&
-            useCodesignStore.getState().currentDesignId === designId
-          ) {
+      const canWrite = () => {
+        const state = useCodesignStore.getState();
+        return (
+          mountedRef.current &&
+          state.currentDesignId === designId &&
+          (!designId || state.generationByDesign?.[designId] === undefined)
+        );
+      };
+      setSaving(true);
+      void persistTweakTokensToWorkspace({
+        designId,
+        previewSource: baseSource,
+        path,
+        tokens: nextTokens,
+        read: files?.read,
+        write: files?.write,
+        canWrite,
+      })
+        .then((result) => {
+          if (!canWrite()) return;
+          if (onPersist) onPersist(result);
+          else if (shouldSyncPreviewSourceAfterTweakPersist(result)) {
             setPreviewSource(result.content);
           }
         })
-        .catch((err) => {
+        .catch(async (err) => {
           useCodesignStore.getState().pushToast({
             variant: 'error',
             title: t('projects.notifications.saveFailed'),
             description: err instanceof Error ? err.message : t('errors.unknown'),
           });
+          if (canWrite() && designId && path && files?.read) {
+            try {
+              const latest = await files.read(designId, path);
+              if (canWrite()) onPersist?.(latest);
+            } catch (readError) {
+              useCodesignStore.getState().pushToast({
+                variant: 'error',
+                title: t('projects.notifications.saveFailed'),
+                description: readError instanceof Error ? readError.message : t('errors.unknown'),
+              });
+            }
+          }
+        })
+        .finally(() => {
+          pendingRef.current = false;
+          if (mountedRef.current) setSaving(false);
         });
-    }, 400);
+    });
   }
 
   function applyTokens(next: EditmodeTokens): void {
@@ -276,7 +305,7 @@ export function TweakPanel({
   }
 
   function applyChange(key: string, next: EditmodeTokenValue): void {
-    if (!liveTokens) return;
+    if (!liveTokens || saving || isGenerating) return;
     applyTokens({ ...liveTokens, [key]: next });
   }
 
@@ -329,7 +358,7 @@ export function TweakPanel({
           <button
             type="button"
             onClick={reset}
-            disabled={!isDirty}
+            disabled={!isDirty || saving || isGenerating}
             title={resetText}
             aria-label={resetText}
             className="inline-flex h-[24px] w-[24px] items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] transition-colors duration-[var(--duration-faster)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text-primary)] disabled:pointer-events-none disabled:opacity-30"
@@ -351,7 +380,10 @@ export function TweakPanel({
       </div>
 
       {hasTokens ? (
-        <div className="flex max-h-[60vh] flex-col gap-[var(--space-1)] overflow-y-auto px-[var(--space-3)] py-[var(--space-2)]">
+        <fieldset
+          disabled={saving || isGenerating}
+          className="flex min-w-0 max-h-[60vh] flex-col gap-[var(--space-1)] overflow-y-auto px-[var(--space-3)] py-[var(--space-2)] disabled:opacity-50"
+        >
           {entries.map(([key, value]) => (
             <TokenRow
               key={key}
@@ -362,7 +394,7 @@ export function TweakPanel({
               schemaEntry={schema?.[key]}
             />
           ))}
-        </div>
+        </fieldset>
       ) : (
         <div className="flex flex-col items-start gap-[var(--space-1_5)] px-[var(--space-3)] py-[var(--space-3)]">
           <div className="text-[12px] font-medium text-[var(--color-text-primary)]">

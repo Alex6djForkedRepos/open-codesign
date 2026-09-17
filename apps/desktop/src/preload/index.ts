@@ -665,12 +665,18 @@ const api = {
         designId,
         path,
       }) as Promise<WorkspaceDocumentThumbnailResult>,
-    write: (designId: string, path: string, content: string) =>
+    write: (
+      designId: string,
+      path: string,
+      content: string,
+      options?: { expectedContent: string },
+    ) =>
       ipcRenderer.invoke('codesign:files:v1:write', {
         schemaVersion: 1,
         designId,
         path,
         content,
+        ...(options ? { expectedContent: options.expectedContent } : {}),
       }) as Promise<WorkspaceFileReadResult>,
     importToWorkspace: (input: {
       designId: string;

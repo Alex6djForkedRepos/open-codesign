@@ -819,9 +819,7 @@ export function shouldShowTweakPanelForFile(input: {
   previewKind: FilePreviewKind;
   hasPreviewSource: boolean;
 }): boolean {
-  return (
-    input.hasPreviewSource && input.previewKind === 'runtime' && isMainDesignSourcePath(input.path)
-  );
+  return input.hasPreviewSource && input.previewKind === 'runtime';
 }
 
 export function shouldEnableWorkspaceFilePreviewInteractions(input: {
@@ -1683,7 +1681,6 @@ export function WorkspaceFilePreview({
       return;
     }
     let cancelled = false;
-    setPreviewSource(null);
     setReadError(null);
     void readWorkspacePreviewSource({ designId: currentDesignId, path, read })
       .then((result) => {
@@ -1798,7 +1795,14 @@ export function WorkspaceFilePreview({
       />
       {showTweakPanel ? (
         <Suspense fallback={null}>
-          <TweakPanel iframeRef={iframeRef} />
+          {activePreviewSource ? (
+            <TweakPanel
+              key={`${currentDesignId}:${activePreviewSource.path}`}
+              iframeRef={iframeRef}
+              source={activePreviewSource}
+              onPersist={setPreviewSource}
+            />
+          ) : null}
         </Suspense>
       ) : null}
     </>

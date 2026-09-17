@@ -293,7 +293,7 @@ describe('FilesTabView preview helpers', () => {
     expect(previewKindForFile('archive.zip', 'asset')).toBe('unsupported');
   });
 
-  it('shows tweaks only for the main runtime design source preview', () => {
+  it('shows source-backed tweaks for every runtime file, not just the main entry', () => {
     expect(
       shouldShowTweakPanelForFile({
         path: 'App.jsx',
@@ -314,7 +314,7 @@ describe('FilesTabView preview helpers', () => {
         previewKind: 'runtime',
         hasPreviewSource: true,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldShowTweakPanelForFile({
         path: 'DESIGN.md',

@@ -2060,6 +2060,9 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
 
       const content = r['content'] as string;
       const designId = r['designId'] as string;
+      if (r['expectedContent'] !== undefined && typeof r['expectedContent'] !== 'string') {
+        throw new CodesignError('expectedContent must be a string', 'IPC_BAD_INPUT');
+      }
       const writeContent = prepareWorkspaceWriteContent(normalizedPath, content);
       return withStableWorkspacePath(designId, async () => {
         const currentDesign = await getDesignAfterPendingWorkspaceRename(
@@ -2087,6 +2090,15 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
           throw new CodesignError('Invalid workspace file path', 'IPC_BAD_INPUT', { cause });
         }
         try {
+          if (typeof r['expectedContent'] === 'string') {
+            const currentContent = await readFile(currentDestinationPath, 'utf8');
+            if (currentContent !== r['expectedContent']) {
+              throw new CodesignError(
+                'Workspace file changed before the tweak could be saved. Reload its controls.',
+                'IPC_CONFLICT',
+              );
+            }
+          }
           await mkdir(path.dirname(currentDestinationPath), { recursive: true });
           if (typeof writeContent.diskContent === 'string') {
             await writeFile(currentDestinationPath, writeContent.diskContent, 'utf8');
@@ -2094,6 +2106,7 @@ export function registerWorkspaceIpc(db: Database, getWin: () => BrowserWindow |
             await writeFile(currentDestinationPath, writeContent.diskContent);
           }
         } catch (cause) {
+          if (cause instanceof CodesignError) throw cause;
           throw new CodesignError('Failed to write workspace file', 'IPC_DB_ERROR', { cause });
         }
 
