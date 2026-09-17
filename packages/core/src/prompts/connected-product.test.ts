@@ -62,6 +62,32 @@ describe('connected product prompt contract', () => {
     }
   });
 
+  it('delivers runnable milestones without dropping final scope or forcing extra rounds', () => {
+    const prompt = composeSystemPrompt({ mode: 'create' });
+    for (const contract of [
+      'For substantial fresh app/product work',
+      'a few meaningful, runnable checkpoints',
+      'write this small renderable checkpoint early',
+      'primary navigation state, shared records, and an initial screen',
+      'a small realistic dataset',
+      'edit the working frame',
+      'then exercise the core flow',
+      'recheck affected behavior and the target viewport before `done`',
+      'not three mandatory extra rounds',
+      'avoid per-line tool churn or repeated full rewrites',
+      'An early frame preview proves rendering only',
+      'never stop at a pretty skeleton or silently drop planned journeys',
+      'each create/edit must leave a syntactically valid, renderable file',
+      'Never save unclosed JSX or half a component',
+      'Single-screen, document, deck, and narrow revision requests do not need',
+      'Never use "Loading", "Generating", gray skeleton blocks',
+    ]) {
+      expect(prompt, contract).toContain(contract);
+    }
+    expect(prompt).not.toContain('Preview the complete pass');
+    expect(prompt).not.toContain('focused edits to a complete first pass, then `preview(App.jsx)`');
+  });
+
   it.each([
     'create',
     'revise',

@@ -203,6 +203,8 @@ Pick one of **fifteen built-in demos** — landing page, dashboard, pitch slide,
 
 For app requests, the agent is guided to build a **bounded, connected local prototype**, not a collection of isolated screens: a core journey, working navigation and back paths, shared records, and relevant validation, empty, and success states. For example: “Build Daymark, a polished mobile Todo app for planning a day.” Adding, editing, completing, and filtering tasks should update related views and counts together. Explicit single-screen requests, decks, documents, and narrow revisions keep their original scope.
 
+Substantial fresh apps use a few runnable milestones: an early coherent frame with visual tokens and realistic initial content, connected journeys and shared-state actions, then integrated craft and responsive refinement. The agent edits complete, readable source at each checkpoint rather than holding back one giant file or showing generation placeholders. An early frame preview is progress, not completion; the final requested journeys still need to be implemented and checked. This is workflow guidance, not a guaranteed generation-speed improvement.
+
 These are interactive prototypes, not production services. Data and service actions are simulated; backend setup, real authentication, and payments are not implied. State is in memory by default and may reset on reload. The agent previews the result and, when supported by the preview tool, exercises a bounded journey at the target viewport, repairs concrete failures, and distinguishes runtime checks from interactions actually tested.
 
 ---

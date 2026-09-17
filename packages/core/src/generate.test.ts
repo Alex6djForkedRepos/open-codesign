@@ -371,12 +371,14 @@ describe('composeSystemPrompt()', () => {
     expect(p).toContain('not a standalone HTML export');
   });
 
-  it('allows a coherent first file pass before preview', () => {
+  it('allows a coherent early preview without treating the frame as a finished product', () => {
     const p = composeSystemPrompt({ mode: 'create' });
     expect(p).toContain('First file pass');
     expect(p).toContain('create `App.jsx` when you have a coherent first pass');
     expect(p).toContain('For document-first requests');
-    expect(p).toContain('Preview the complete pass');
+    expect(p).toContain('Preview checkpoints');
+    expect(p).toContain('An early coherent frame may be previewed before all journeys exist');
+    expect(p).toContain('after functionality is complete, check the full core flow');
     expect(p).toContain('Implement and polish');
     expect(p).toContain('call `preview(path)` only for previewable HTML/JSX/TSX files');
   });
