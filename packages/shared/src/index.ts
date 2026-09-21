@@ -618,3 +618,5 @@ export {
   replaceEditmodeBlock,
   replaceTweakSchema,
 } from './editmode';
+
+export * from './web-research';
